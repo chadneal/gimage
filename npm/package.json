@@ -1,0 +1,55 @@
+{
+  "name": "@chadneal/gimage-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for AI-powered image generation and processing with gimage",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "ai",
+    "image-generation",
+    "image-processing",
+    "gemini",
+    "vertex-ai",
+    "image-resize",
+    "image-conversion"
+  ],
+  "author": "Chad Neal <chad@chadneal.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chadneal/gimage.git",
+    "directory": "npm"
+  },
+  "homepage": "https://github.com/chadneal/gimage#readme",
+  "bugs": {
+    "url": "https://github.com/chadneal/gimage/issues"
+  },
+  "bin": {
+    "gimage-mcp": "./bin/gimage-mcp.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md"
+  ],
+  "dependencies": {
+    "tar": "^7.0.0"
+  },
+  "devDependencies": {}
+}

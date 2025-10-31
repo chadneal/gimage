@@ -1,4 +1,4 @@
-.PHONY: build build-all test test-coverage install clean lint benchmark info help
+.PHONY: build build-all test test-coverage install clean lint benchmark info help build-lambda package-lambda deploy-lambda clean-lambda lambda-logs
 
 # Binary name
 BINARY_NAME=gimage
@@ -26,15 +26,20 @@ all: build
 ## help: Display this help message
 help:
 	@echo "Available targets:"
-	@echo "  build          - Build the binary for current platform"
-	@echo "  build-all      - Build binaries for all platforms"
-	@echo "  test           - Run tests"
-	@echo "  test-coverage  - Run tests with coverage report"
-	@echo "  install        - Install binary to $(INSTALL_DIR)"
-	@echo "  clean          - Remove build artifacts"
-	@echo "  info           - Display version and release notes"
-	@echo "  lint           - Run linter"
-	@echo "  benchmark      - Run benchmarks"
+	@echo "  build           - Build the binary for current platform"
+	@echo "  build-all       - Build binaries for all platforms"
+	@echo "  build-lambda    - Build Lambda function for AWS ARM64"
+	@echo "  package-lambda  - Package Lambda function for deployment"
+	@echo "  deploy-lambda   - Deploy Lambda function using CDK"
+	@echo "  test            - Run tests"
+	@echo "  test-coverage   - Run tests with coverage report"
+	@echo "  install         - Install binary to $(INSTALL_DIR)"
+	@echo "  clean           - Remove build artifacts"
+	@echo "  clean-lambda    - Remove Lambda build artifacts"
+	@echo "  info            - Display version and release notes"
+	@echo "  lint            - Run linter"
+	@echo "  benchmark       - Run benchmarks"
+	@echo "  lambda-logs     - Tail Lambda function logs"
 
 ## build: Build the binary for current platform
 build:
@@ -141,3 +146,58 @@ mod-verify:
 
 mod-download:
 	$(GOMOD) download
+
+# Lambda-specific targets
+
+## build-lambda: Build Lambda function binary for AWS ARM64
+build-lambda:
+	@echo "Building Lambda function for AWS ARM64..."
+	@mkdir -p $(BUILD_DIR)/lambda
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 $(GOBUILD) $(LDFLAGS) \
+		-tags lambda.norpc \
+		-o $(BUILD_DIR)/lambda/bootstrap \
+		./cmd/lambda
+	@chmod +x $(BUILD_DIR)/lambda/bootstrap
+	@echo "Lambda binary built: $(BUILD_DIR)/lambda/bootstrap ($(shell du -h $(BUILD_DIR)/lambda/bootstrap 2>/dev/null | cut -f1))"
+
+## package-lambda: Package Lambda function for deployment
+package-lambda: build-lambda
+	@echo "Packaging Lambda function..."
+	@cd $(BUILD_DIR)/lambda && zip -q -r ../lambda.zip bootstrap
+	@echo "Lambda package created: $(BUILD_DIR)/lambda.zip ($(shell du -h $(BUILD_DIR)/lambda.zip 2>/dev/null | cut -f1))"
+
+## deploy-lambda: Deploy Lambda function using CDK
+deploy-lambda: package-lambda
+	@echo "Deploying Lambda function with CDK..."
+	@if [ -d "infrastructure/cdk" ]; then \
+		cd infrastructure/cdk && npm install && npm run build && npm run deploy; \
+	else \
+		echo "Error: infrastructure/cdk directory not found"; \
+		echo "Please create CDK infrastructure first (see lambda.md)"; \
+		exit 1; \
+	fi
+
+## clean-lambda: Clean Lambda build artifacts
+clean-lambda:
+	@echo "Cleaning Lambda artifacts..."
+	@rm -rf $(BUILD_DIR)/lambda $(BUILD_DIR)/lambda.zip
+	@echo "Lambda artifacts cleaned"
+
+## lambda-logs: Tail Lambda function logs
+lambda-logs:
+	@echo "Tailing Lambda logs..."
+	@if command -v aws > /dev/null; then \
+		aws logs tail /aws/lambda/gimage-processor --follow; \
+	else \
+		echo "Error: AWS CLI not installed"; \
+		echo "Install with: brew install awscli"; \
+		exit 1; \
+	fi
+
+## lambda-invoke-local: Test Lambda function locally
+lambda-invoke-local: build-lambda
+	@echo "Testing Lambda locally..."
+	@echo "Set environment variables and run:"
+	@echo "  export S3_BUCKET=test-bucket"
+	@echo "  export GEMINI_API_KEY=your_key"
+	@echo "  cd $(BUILD_DIR)/lambda && ./bootstrap"

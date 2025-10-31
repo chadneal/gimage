@@ -125,32 +125,185 @@ type ImageGenerator interface {
 - Benchmark: Profile image processing operations
 - Table-driven tests for multiple scenarios
 
-## API Integration
+## API Integration - Multi-Backend Architecture
 
-### Gemini API
-- Use `google.golang.org/genai` SDK
-- Models: `gemini-2.5-flash-image`, `gemini-2.0-flash-preview-image-generation`
-- Authentication: API key via `GEMINI_API_KEY` env var or `~/.gimage/config.md`
-- Setup: `gimage auth gemini` (interactive)
-- Get API key from: https://aistudio.google.com/app/apikey
-- Default size: 1024x1024
-- Supports styles: photorealistic, artistic, anime
+**IMPORTANT**: Gimage supports multiple AI generation backends with both SDK and REST API implementations. Each backend has its own client type but shares a common interface pattern.
 
-### Vertex AI
-- Use `cloud.google.com/go/vertexai` SDK
-- Models: `imagen-3.0-generate-002`, `imagen-4`
-- Authentication options:
-  1. **Express Mode** (recommended for dev): API key via `VERTEX_API_KEY` env var or config file
-  2. **Full Mode**: Service account via `GOOGLE_APPLICATION_CREDENTIALS` env var
-  3. **Full Mode**: Application Default Credentials (run `gcloud auth application-default login`)
-- Setup: `gimage auth vertex` (interactive, offers all 3 modes)
-- Supports 2K resolution generation
-- Cost estimation required before generation
+### Architecture Overview
 
-### Retry Logic
+```
+Image Generation Backends:
+├── Gemini API (REST)        -> generate.NewGeminiRESTClient(apiKey)
+├── Vertex AI (Express Mode) -> generate.NewVertexRESTClient(apiKey, project, location)  [REST]
+├── Vertex AI (Full Mode)    -> generate.NewVertexSDKClient(ctx, project, location)      [SDK]
+└── Future: Bedrock, Nova, etc.
+```
+
+**Common Client Interface Pattern:**
+All clients implement these methods:
+```go
+GenerateImage(ctx context.Context, prompt string, options models.GenerateOptions) (*models.GeneratedImage, error)
+Close() error  // Cleanup resources
+```
+
+### Backend Selection Logic (Priority Order)
+1. **Explicit flag**: `--api gemini` or `--api vertex`
+2. **Auto-detect from model**: Model name implies backend (e.g., "imagen-4" → vertex)
+3. **Auto-detect from credentials**: Check which API keys are configured
+4. **Config default**: Use `default_api` from `~/.gimage/config.md`
+5. **Fallback**: Default to Gemini if both are available
+
+### Gemini API Backend
+
+**Implementation**: REST API client (`gemini_rest.go`)
+
+**Setup**:
+```bash
+gimage auth gemini
+```
+
+**Models**:
+- `gemini-2.5-flash-image` (default, recommended)
+- `gemini-2.0-flash-preview-image-generation`
+
+**Authentication**:
+- API key via `GEMINI_API_KEY` env var or `~/.gimage/config.md`
+- Get free API key: https://aistudio.google.com/app/apikey
+- Free tier: 1500 requests/day
+
+**Usage in Code**:
+```go
+import "github.com/chadneal/gimage/internal/generate"
+import "github.com/chadneal/gimage/internal/config"
+
+// Get API key from config or env
+key, err := config.GetGeminiAPIKey("")
+client, err := generate.NewGeminiRESTClient(key)
+defer client.Close()
+
+ctx := context.Background()
+options := models.GenerateOptions{
+    Model: "gemini-2.5-flash-image",
+    Size: "1024x1024",
+    Style: "photorealistic",
+}
+img, err := client.GenerateImage(ctx, prompt, options)
+```
+
+### Vertex AI Backend
+
+**Two Implementation Modes**:
+1. **Express Mode** - REST API with API key (simpler, recommended for dev)
+2. **Full Mode** - SDK with service account or ADC (production-grade)
+
+**Setup**:
+```bash
+gimage auth vertex  # Interactive wizard offers both modes
+```
+
+**Models**:
+- `imagen-3.0-generate-002` (Imagen 3)
+- `imagen-4` (latest, highest quality, up to 2048x2048)
+
+#### Express Mode (REST API)
+
+**Implementation**: `vertex_rest.go`
+
+**Authentication**:
+- API key via `VERTEX_API_KEY` env var or config
+- Requires `VERTEX_PROJECT` and `VERTEX_LOCATION`
+
+**Usage**:
+```go
+apiKey, err := config.GetVertexAPIKey("")
+project := os.Getenv("VERTEX_PROJECT") // or from config
+location := "us-central1"
+
+client, err := generate.NewVertexRESTClient(apiKey, project, location)
+defer client.Close()
+
+img, err := client.GenerateImage(ctx, prompt, options)
+```
+
+#### Full Mode (SDK)
+
+**Implementation**: `vertex_sdk.go`
+
+**Authentication Options**:
+1. Service account JSON via `GOOGLE_APPLICATION_CREDENTIALS`
+2. Application Default Credentials (`gcloud auth application-default login`)
+
+**Usage**:
+```go
+project := os.Getenv("VERTEX_PROJECT")
+location := "us-central1"
+
+client, err := generate.NewVertexSDKClient(ctx, project, location)
+defer client.Close()
+
+img, err := client.GenerateImage(ctx, prompt, options)
+```
+
+### Future Backends
+
+When adding new backends (Bedrock, Nova, etc.):
+
+1. **Create new client file**: `internal/generate/bedrock_rest.go`
+2. **Implement common interface**:
+   ```go
+   func NewBedrockClient(cfg) (*BedrockClient, error)
+   func (c *BedrockClient) GenerateImage(ctx, prompt, options) (*GeneratedImage, error)
+   func (c *BedrockClient) Close() error
+   ```
+3. **Add to model detection**: Update `generate.DetectAPIFromModel()`
+4. **Add auth setup**: Create `gimage auth bedrock` command
+5. **Update docs**: Add to this section and MCP_TOOLS.md
+6. **Add tests**: Create `bedrock_test.go` with mocked API calls
+
+### Testing Strategy for Multi-Backend
+
+**Unit Tests**: Mock API calls, test each backend separately
+```go
+// Test files should match implementation files
+gemini_rest.go     -> gemini_rest_test.go     (mocked Gemini REST API)
+vertex_rest.go     -> vertex_rest_test.go     (mocked Vertex REST API)
+vertex_sdk.go      -> vertex_sdk_test.go      (mocked Vertex SDK)
+```
+
+**Integration Tests**: Use real credentials (optional, manual)
+```bash
+# Only run if credentials are configured
+go test -tags=integration ./internal/generate/...
+```
+
+**MCP Tool Tests**: Focus on parameter validation, not actual generation
+```go
+// Test MCP tool request/response format, not actual API calls
+// Real API calls require credentials and cost money
+```
+
+### Configuration File Support
+
+All backends read from `~/.gimage/config.md`:
+```markdown
+# Gemini Configuration
+**gemini_api_key**: AIzaSy...
+
+# Vertex AI Configuration
+**vertex_api_key**: AIzaSy...          # For Express Mode
+**vertex_project**: my-gcp-project
+**vertex_location**: us-central1
+**vertex_credentials_path**: ~/.gimage/credentials/sa.json  # For Full Mode
+
+# Default Backend
+**default_api**: gemini  # or "vertex"
+```
+
+### Retry Logic (All Backends)
 - Max 3 retry attempts with exponential backoff
-- Handle rate limits gracefully
-- Clear error messages for quota/permission issues
+- Initial backoff: 1 second, max: 10 seconds
+- Retryable errors: rate limits, timeouts, 503 errors
+- Non-retryable: invalid key, bad params, permission denied
 
 ## MCP Server
 

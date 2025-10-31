@@ -1,0 +1,98 @@
+package tools
+
+import (
+	"fmt"
+	"path/filepath"
+
+	"github.com/chadneal/gimage/internal/mcp"
+	"github.com/disintegration/imaging"
+)
+
+// RegisterResizeImageTool registers the resize_image tool
+func RegisterResizeImageTool(server *mcp.MCPServer) {
+	tool := mcp.Tool{
+		Name:        "resize_image",
+		Description: "Resize an image to specific dimensions using high-quality Lanczos resampling. This changes both width and height to exact pixel values. Note: Aspect ratio is NOT preserved unless dimensions match original ratio. Use scale_image if you want to maintain aspect ratio.",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"input": map[string]interface{}{
+					"type":        "string",
+					"description": "Input image file path (absolute or relative path)",
+				},
+				"width": map[string]interface{}{
+					"type":        "integer",
+					"description": "Target width in pixels (must be positive integer)",
+					"minimum":     1,
+				},
+				"height": map[string]interface{}{
+					"type":        "integer",
+					"description": "Target height in pixels (must be positive integer)",
+					"minimum":     1,
+				},
+				"output": map[string]interface{}{
+					"type":        "string",
+					"description": "Output file path. If not provided, generates filename like input_resized.ext",
+				},
+			},
+			"required": []string{"input", "width", "height"},
+		},
+		Handler: func(args map[string]interface{}) (map[string]interface{}, error) {
+			// Validate input
+			input, err := validateString(args["input"], "input")
+			if err != nil {
+				return nil, err
+			}
+
+			// Validate dimensions
+			width, err := validatePositiveInt(args["width"], "width")
+			if err != nil {
+				return nil, err
+			}
+
+			height, err := validatePositiveInt(args["height"], "height")
+			if err != nil {
+				return nil, err
+			}
+
+			// Determine output path
+			output, _ := args["output"].(string)
+			if output == "" {
+				output = generateOutputPath(input, "resized")
+			}
+
+			// Get original dimensions
+			origWidth, origHeight, err := getImageDimensions(input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read input image: %w", err)
+			}
+
+			// Load image
+			img, err := loadImage(input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load image: %w", err)
+			}
+
+			// Resize image using Lanczos resampling
+			resized := imaging.Resize(img, width, height, imaging.Lanczos)
+
+			// Save resized image
+			err = saveImage(resized, output)
+			if err != nil {
+				return nil, fmt.Errorf("failed to save resized image: %w", err)
+			}
+
+			// Get absolute path for response
+			absPath, _ := filepath.Abs(output)
+
+			return map[string]interface{}{
+				"success":       true,
+				"output_path":   absPath,
+				"original_size": fmt.Sprintf("%dx%d", origWidth, origHeight),
+				"new_size":      fmt.Sprintf("%dx%d", width, height),
+			}, nil
+		},
+	}
+
+	server.RegisterTool(tool)
+}

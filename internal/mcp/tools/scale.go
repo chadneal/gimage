@@ -1,0 +1,101 @@
+package tools
+
+import (
+	"fmt"
+	"path/filepath"
+
+	"github.com/chadneal/gimage/internal/mcp"
+	"github.com/disintegration/imaging"
+)
+
+// RegisterScaleImageTool registers the scale_image tool
+func RegisterScaleImageTool(server *mcp.MCPServer) {
+	tool := mcp.Tool{
+		Name:        "scale_image",
+		Description: "Scale an image by a factor while preserving aspect ratio. Use this when you want to make an image larger or smaller proportionally. For example, factor 0.5 makes image half size, factor 2.0 makes it double size. Uses high-quality Lanczos resampling.",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"input": map[string]interface{}{
+					"type":        "string",
+					"description": "Input image file path (absolute or relative path)",
+				},
+				"factor": map[string]interface{}{
+					"type":        "number",
+					"description": "Scale factor (0.1 to 10.0). Examples: 0.5 = half size, 2.0 = double size, 0.25 = quarter size",
+					"minimum":     0.1,
+					"maximum":     10.0,
+				},
+				"output": map[string]interface{}{
+					"type":        "string",
+					"description": "Output file path. If not provided, generates filename like input_scaled.ext",
+				},
+			},
+			"required": []string{"input", "factor"},
+		},
+		Handler: func(args map[string]interface{}) (map[string]interface{}, error) {
+			// Validate input
+			input, err := validateString(args["input"], "input")
+			if err != nil {
+				return nil, err
+			}
+
+			// Validate factor
+			factorVal, ok := args["factor"].(float64)
+			if !ok {
+				return nil, fmt.Errorf("factor must be a number")
+			}
+			if factorVal < 0.1 || factorVal > 10.0 {
+				return nil, fmt.Errorf("factor must be between 0.1 and 10.0")
+			}
+
+			// Determine output path
+			output, _ := args["output"].(string)
+			if output == "" {
+				output = generateOutputPath(input, "scaled")
+			}
+
+			// Get original dimensions
+			origWidth, origHeight, err := getImageDimensions(input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read input image: %w", err)
+			}
+
+			// Calculate new dimensions
+			newWidth := int(float64(origWidth) * factorVal)
+			newHeight := int(float64(origHeight) * factorVal)
+
+			if newWidth < 1 || newHeight < 1 {
+				return nil, fmt.Errorf("resulting dimensions would be too small (less than 1 pixel)")
+			}
+
+			// Load image
+			img, err := loadImage(input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load image: %w", err)
+			}
+
+			// Resize image using Lanczos resampling
+			scaled := imaging.Resize(img, newWidth, newHeight, imaging.Lanczos)
+
+			// Save scaled image
+			err = saveImage(scaled, output)
+			if err != nil {
+				return nil, fmt.Errorf("failed to save scaled image: %w", err)
+			}
+
+			// Get absolute path for response
+			absPath, _ := filepath.Abs(output)
+
+			return map[string]interface{}{
+				"success":       true,
+				"output_path":   absPath,
+				"scale_factor":  factorVal,
+				"original_size": fmt.Sprintf("%dx%d", origWidth, origHeight),
+				"new_size":      fmt.Sprintf("%dx%d", newWidth, newHeight),
+			}, nil
+		},
+	}
+
+	server.RegisterTool(tool)
+}

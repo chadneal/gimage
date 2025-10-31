@@ -1,0 +1,831 @@
+openapi: 3.0.3
+info:
+  title: Gimage API
+  version: 0.1.1
+  description: |
+    AI-powered image generation and processing API powered by Google Gemini and Vertex AI.
+
+    ## Features
+    - **AI Image Generation**: Create images from text using Gemini 2.5 Flash or Vertex AI Imagen 4
+    - **Image Processing**: Resize, scale, crop, compress, and convert images
+    - **Batch Operations**: Process multiple images concurrently
+    - **Flexible Response**: Small images as base64, large images as S3 presigned URLs
+
+    ## Authentication
+    Currently, the API uses environment-based authentication. For production deployments,
+    add API key authentication via API Gateway.
+
+  contact:
+    name: Gimage Support
+    url: https://github.com/chadneal/gimage
+  license:
+    name: MIT
+    url: https://github.com/chadneal/gimage/blob/main/LICENSE
+
+servers:
+  - url: https://your-api-id.execute-api.us-east-1.amazonaws.com/prod
+    description: Production API (replace with your API Gateway URL)
+  - url: http://localhost:3000
+    description: Local development (SAM local)
+
+tags:
+  - name: Generation
+    description: AI-powered image generation
+  - name: Processing
+    description: Image processing operations
+  - name: Batch
+    description: Batch processing operations
+  - name: Health
+    description: Health check and status
+
+paths:
+  /generate:
+    post:
+      tags:
+        - Generation
+      summary: Generate image from text prompt
+      description: |
+        Generate an AI image from a text description using Google Gemini or Vertex AI.
+
+        **Models Available:**
+        - Gemini: `gemini-2.5-flash-image` (default), `gemini-2.0-flash-preview-image-generation`
+        - Vertex AI: `imagen-4.0-generate-001`, `imagen-4.0-ultra-generate-001`, `imagen-4.0-fast-generate-001`
+
+        **Response Formats:**
+        - `base64`: Image data encoded in base64 (for images < 512KB)
+        - `s3_url`: Presigned S3 URL valid for 60 minutes (for larger images)
+
+      operationId: generateImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateRequest'
+            examples:
+              simple:
+                summary: Simple generation
+                value:
+                  prompt: "a sunset over mountains"
+              advanced:
+                summary: Advanced with options
+                value:
+                  prompt: "futuristic city with flying cars"
+                  model: "gemini-2.5-flash-image"
+                  size: "1024x1024"
+                  style: "photorealistic"
+                  negative_prompt: "people, text"
+                  seed: 42
+                  response_format: "s3_url"
+      responses:
+        '200':
+          description: Image generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageResponse'
+              examples:
+                base64:
+                  summary: Base64 response (small image)
+                  value:
+                    image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                    width: 1024
+                    height: 1024
+                    format: "png"
+                    size_bytes: 524288
+                s3_url:
+                  summary: S3 URL response (large image)
+                  value:
+                    s3_url: "https://gimage-storage.s3.amazonaws.com/images/1234567890-abc.png?X-Amz-..."
+                    s3_key: "images/1234567890-abc.png"
+                    width: 2048
+                    height: 2048
+                    format: "png"
+                    size_bytes: 2097152
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /resize:
+    post:
+      tags:
+        - Processing
+      summary: Resize image to specific dimensions
+      description: |
+        Resize an image to exact width and height using high-quality Lanczos resampling.
+
+        **Input formats:**
+        - Base64-encoded image data
+        - S3 key from previous operation
+
+      operationId: resizeImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResizeRequest'
+            examples:
+              base64_input:
+                summary: Resize base64 image
+                value:
+                  image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAY..."
+                  width: 800
+                  height: 600
+                  response_format: "base64"
+              s3_input:
+                summary: Resize S3 image
+                value:
+                  image: "images/1234567890-abc.png"
+                  width: 1920
+                  height: 1080
+                  response_format: "s3_url"
+      responses:
+        '200':
+          description: Image resized successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /scale:
+    post:
+      tags:
+        - Processing
+      summary: Scale image by factor
+      description: |
+        Scale an image by a multiplication factor.
+
+        **Examples:**
+        - `0.5` = half size (50%)
+        - `2.0` = double size (200%)
+        - `0.25` = quarter size (25%)
+
+      operationId: scaleImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScaleRequest'
+            examples:
+              half_size:
+                summary: Scale to 50%
+                value:
+                  image: "images/photo.png"
+                  factor: 0.5
+              double_size:
+                summary: Scale to 200%
+                value:
+                  image: "iVBORw0KGgoAAAA..."
+                  factor: 2.0
+                  response_format: "s3_url"
+      responses:
+        '200':
+          description: Image scaled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /crop:
+    post:
+      tags:
+        - Processing
+      summary: Crop image to region
+      description: |
+        Crop a rectangular region from an image.
+
+        **Coordinates:**
+        - `x`, `y`: Top-left corner of crop region (0,0 is top-left of image)
+        - `width`, `height`: Dimensions of crop region
+
+      operationId: cropImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CropRequest'
+            examples:
+              center_crop:
+                summary: Crop center region
+                value:
+                  image: "images/photo.jpg"
+                  x: 100
+                  y: 100
+                  width: 800
+                  height: 600
+      responses:
+        '200':
+          description: Image cropped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /compress:
+    post:
+      tags:
+        - Processing
+      summary: Compress image
+      description: |
+        Compress an image to reduce file size with configurable quality.
+
+        **Quality settings:**
+        - `1-100`: JPEG/WebP quality (higher = better quality, larger file)
+        - Default: `85` (good balance)
+        - Recommended: `80-90` for web, `90-95` for print
+
+      operationId: compressImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompressRequest'
+            examples:
+              web_optimize:
+                summary: Optimize for web
+                value:
+                  image: "images/large-photo.jpg"
+                  quality: 85
+                  format: "jpg"
+              high_quality:
+                summary: High quality compression
+                value:
+                  image: "iVBORw0KGgo..."
+                  quality: 95
+                  response_format: "s3_url"
+      responses:
+        '200':
+          description: Image compressed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /convert:
+    post:
+      tags:
+        - Processing
+      summary: Convert image format
+      description: |
+        Convert an image between different formats.
+
+        **Supported formats:**
+        - `png`: Portable Network Graphics (supports transparency)
+        - `jpg`, `jpeg`: JPEG (lossy, no transparency)
+        - `gif`: Graphics Interchange Format (limited colors, transparency)
+        - `webp`: WebP (modern web format, smaller sizes)
+        - `tiff`, `tif`: Tagged Image File Format
+        - `bmp`: Bitmap
+
+      operationId: convertImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConvertRequest'
+            examples:
+              to_webp:
+                summary: Convert to WebP
+                value:
+                  image: "images/photo.png"
+                  target_format: "webp"
+              to_jpg:
+                summary: Convert to JPEG
+                value:
+                  image: "iVBORw0KGgo..."
+                  target_format: "jpg"
+                  response_format: "base64"
+      responses:
+        '200':
+          description: Image converted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /batch:
+    post:
+      tags:
+        - Batch
+      summary: Process multiple images
+      description: |
+        Process multiple images concurrently with different operations.
+
+        **Supported operations:**
+        - `resize`: Resize to dimensions
+        - `scale`: Scale by factor
+        - `crop`: Crop region
+        - `compress`: Compress with quality
+        - `convert`: Convert format
+
+        All operations are processed in parallel using Go goroutines.
+
+      operationId: batchProcess
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRequest'
+            examples:
+              mixed_operations:
+                summary: Multiple operations
+                value:
+                  operations:
+                    - operation: "resize"
+                      image: "images/photo1.jpg"
+                      params:
+                        width: 800
+                        height: 600
+                    - operation: "compress"
+                      image: "images/photo2.png"
+                      params:
+                        quality: 85
+                        format: "webp"
+                    - operation: "crop"
+                      image: "images/photo3.jpg"
+                      params:
+                        x: 0
+                        y: 0
+                        width: 1000
+                        height: 1000
+      responses:
+        '200':
+          description: Batch processing completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: |
+        Check API health and availability of AI services.
+
+        Returns status of:
+        - Gemini API (if credentials configured)
+        - Vertex AI (if credentials configured)
+
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                all_available:
+                  summary: All APIs available
+                  value:
+                    status: "healthy"
+                    version: "0.1.1"
+                    apis:
+                      gemini: "available"
+                      vertex: "available"
+                gemini_only:
+                  summary: Gemini only
+                  value:
+                    status: "healthy"
+                    version: "0.1.1"
+                    apis:
+                      gemini: "available"
+                      vertex: "not_configured"
+
+components:
+  schemas:
+    GenerateRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          description: Text description of the image to generate
+          example: "a sunset over mountains"
+          minLength: 1
+          maxLength: 2000
+        model:
+          type: string
+          description: AI model to use for generation
+          example: "gemini-2.5-flash-image"
+          enum:
+            - gemini-2.5-flash-image
+            - gemini-2.0-flash-preview-image-generation
+            - imagen-3.0-generate-001
+            - imagen-4.0-generate-001
+            - imagen-4.0-ultra-generate-001
+            - imagen-4.0-fast-generate-001
+        size:
+          type: string
+          description: Image dimensions (WIDTHxHEIGHT)
+          example: "1024x1024"
+          pattern: '^\d+x\d+$'
+          default: "1024x1024"
+        style:
+          type: string
+          description: Image style/aesthetic
+          enum:
+            - photorealistic
+            - artistic
+            - anime
+          example: "photorealistic"
+        negative_prompt:
+          type: string
+          description: Elements to avoid in the image
+          example: "people, text, watermark"
+          maxLength: 1000
+        seed:
+          type: integer
+          format: int64
+          description: Random seed for reproducible results (0 for random)
+          example: 42
+          minimum: 0
+        response_format:
+          type: string
+          description: Preferred response format
+          enum:
+            - base64
+            - s3_url
+          example: "s3_url"
+
+    ResizeRequest:
+      type: object
+      required:
+        - image
+        - width
+        - height
+      properties:
+        image:
+          type: string
+          description: Base64-encoded image or S3 key
+          example: "images/photo.jpg"
+        width:
+          type: integer
+          description: Target width in pixels
+          example: 800
+          minimum: 1
+          maximum: 10000
+        height:
+          type: integer
+          description: Target height in pixels
+          example: 600
+          minimum: 1
+          maximum: 10000
+        response_format:
+          type: string
+          enum:
+            - base64
+            - s3_url
+          example: "base64"
+
+    ScaleRequest:
+      type: object
+      required:
+        - image
+        - factor
+      properties:
+        image:
+          type: string
+          description: Base64-encoded image or S3 key
+        factor:
+          type: number
+          format: double
+          description: Scaling factor (0.5 = half, 2.0 = double)
+          example: 0.5
+          minimum: 0.01
+          maximum: 10.0
+        response_format:
+          type: string
+          enum:
+            - base64
+            - s3_url
+
+    CropRequest:
+      type: object
+      required:
+        - image
+        - x
+        - y
+        - width
+        - height
+      properties:
+        image:
+          type: string
+          description: Base64-encoded image or S3 key
+        x:
+          type: integer
+          description: X coordinate of top-left corner
+          example: 100
+          minimum: 0
+        y:
+          type: integer
+          description: Y coordinate of top-left corner
+          example: 100
+          minimum: 0
+        width:
+          type: integer
+          description: Crop width in pixels
+          example: 800
+          minimum: 1
+        height:
+          type: integer
+          description: Crop height in pixels
+          example: 600
+          minimum: 1
+        response_format:
+          type: string
+          enum:
+            - base64
+            - s3_url
+
+    CompressRequest:
+      type: object
+      required:
+        - image
+      properties:
+        image:
+          type: string
+          description: Base64-encoded image or S3 key
+        quality:
+          type: integer
+          description: Compression quality (1-100, higher = better)
+          example: 85
+          minimum: 1
+          maximum: 100
+          default: 85
+        format:
+          type: string
+          description: Target format (optional, maintains original if not specified)
+          enum:
+            - jpg
+            - jpeg
+            - png
+            - webp
+          example: "jpg"
+        response_format:
+          type: string
+          enum:
+            - base64
+            - s3_url
+
+    ConvertRequest:
+      type: object
+      required:
+        - image
+        - target_format
+      properties:
+        image:
+          type: string
+          description: Base64-encoded image or S3 key
+        target_format:
+          type: string
+          description: Desired output format
+          enum:
+            - png
+            - jpg
+            - jpeg
+            - gif
+            - webp
+            - tiff
+            - tif
+            - bmp
+          example: "webp"
+        response_format:
+          type: string
+          enum:
+            - base64
+            - s3_url
+
+    BatchOperation:
+      type: object
+      required:
+        - operation
+        - image
+        - params
+      properties:
+        operation:
+          type: string
+          description: Operation type
+          enum:
+            - resize
+            - scale
+            - crop
+            - compress
+            - convert
+          example: "resize"
+        image:
+          type: string
+          description: Base64-encoded image or S3 key
+          example: "images/photo.jpg"
+        params:
+          type: object
+          description: Operation-specific parameters
+          additionalProperties: true
+          example:
+            width: 800
+            height: 600
+
+    BatchRequest:
+      type: object
+      required:
+        - operations
+      properties:
+        operations:
+          type: array
+          description: List of operations to perform
+          items:
+            $ref: '#/components/schemas/BatchOperation'
+          minItems: 1
+          maxItems: 100
+        callback_url:
+          type: string
+          format: uri
+          description: Optional webhook URL for completion notification
+          example: "https://myapp.com/webhook"
+
+    ImageResponse:
+      type: object
+      properties:
+        image:
+          type: string
+          description: Base64-encoded image data (for small images)
+          example: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAY..."
+        s3_url:
+          type: string
+          format: uri
+          description: Presigned S3 URL (for large images, valid 60 min)
+          example: "https://gimage-storage.s3.amazonaws.com/images/1234-abc.png?X-Amz-..."
+        s3_key:
+          type: string
+          description: S3 key for chaining operations
+          example: "images/1234567890-abc.png"
+        width:
+          type: integer
+          description: Image width in pixels
+          example: 1024
+        height:
+          type: integer
+          description: Image height in pixels
+          example: 1024
+        format:
+          type: string
+          description: Image format
+          example: "png"
+        size_bytes:
+          type: integer
+          format: int64
+          description: Image file size in bytes
+          example: 524288
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional metadata
+
+    BatchResponse:
+      type: object
+      properties:
+        batch_id:
+          type: string
+          description: Unique batch identifier
+          example: "batch-1234567890"
+        status:
+          type: string
+          description: Batch processing status
+          enum:
+            - processing
+            - completed
+            - failed
+          example: "completed"
+        status_url:
+          type: string
+          description: URL to check batch status
+          example: "/batch/batch-1234567890"
+        results:
+          type: array
+          description: Results for each operation
+          items:
+            $ref: '#/components/schemas/ImageResponse'
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Overall service status
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+          example: "healthy"
+        version:
+          type: string
+          description: API version
+          example: "0.1.1"
+        apis:
+          type: object
+          description: Status of AI services
+          additionalProperties:
+            type: string
+            enum:
+              - available
+              - not_configured
+              - unavailable
+          example:
+            gemini: "available"
+            vertex: "available"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "Bad Request"
+        message:
+          type: string
+          description: Detailed error message
+          example: "Invalid image format"
+        code:
+          type: integer
+          description: HTTP status code
+          example: 400
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Bad Request"
+            message: "Width must be positive"
+            code: 400
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Not Found"
+            message: "Route not found: GET /unknown"
+            code: 404
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Internal Server Error"
+            message: "Failed to process image"
+            code: 500
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (configure in API Gateway)
+
+# Apply security globally (optional, enable after adding API Gateway auth)
+# security:
+#   - ApiKeyAuth: []
