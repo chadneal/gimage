@@ -33,7 +33,11 @@
 #### Homebrew (macOS/Linux) - Recommended
 
 ```bash
-brew install chadneal/gimage/gimage
+# Add the tap
+brew tap chadneal/gimage
+
+# Install gimage
+brew install gimage
 ```
 
 #### Upgrade via Homebrew

@@ -5,8 +5,8 @@ This document outlines the complete strategy for distributing `gimage` via Homeb
 ## Overview
 
 Homebrew distribution involves two main approaches:
-1. **Custom Tap** (Initial/Personal): `brew install chadneal/gimage/gimage`
-2. **Homebrew Core** (Official/Long-term): `brew install gimage`
+1. **Custom Tap** (Current): `brew tap chadneal/gimage && brew install gimage`
+2. **Homebrew Core** (Official/Long-term): `brew install gimage` (no tap required)
 
 We'll start with a custom tap and eventually submit to homebrew-core for wider distribution.
 
@@ -149,12 +149,12 @@ git remote -v
 Once the tap is published, users can install gimage:
 
 ```bash
-# Method 1: Install from tap (automatically taps if needed)
-brew install chadneal/gimage/gimage
-
-# Method 2: Tap first, then install
+# Method 1: Tap first, then install (Recommended - cleaner)
 brew tap chadneal/gimage
 brew install gimage
+
+# Method 2: One-line install (taps automatically)
+brew install chadneal/gimage/gimage
 ```
 
 ### Update Formula for New Releases
@@ -337,7 +337,8 @@ end
 
    ### Homebrew (macOS/Linux)
    ```bash
-   brew install chadneal/gimage/gimage
+   brew tap chadneal/gimage
+   brew install gimage
    ```
 
    ### Upgrade
