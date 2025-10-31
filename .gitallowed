@@ -1,0 +1,8 @@
+# Allowed patterns for git-secrets
+# These are environment variable names in documentation, not actual secrets
+
+GOOGLE_APPLICATION_CREDENTIALS
+GEMINI_API_KEY
+VERTEX_API_KEY
+VERTEX_PROJECT
+VERTEX_LOCATION

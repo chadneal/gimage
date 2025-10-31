@@ -1,0 +1,90 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+coverage.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Environment variables
+.env
+.env.local
+
+# IDE specific files
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Config files with sensitive data
+.gimage/config.yaml
+.gimage/config.md
+config.yaml
+config.md
+
+# Credentials and keys
+*.json.key
+*credentials*.json
+service-account*.json
+.gimage/credentials/
+credentials/
+*.pem
+*.key
+*.p12
+
+# Generated and processed images
+generated_*.png
+generated_*.jpg
+generated_*.jpeg
+generated_*.webp
+*_resized.*
+*_scaled.*
+*_cropped.*
+*_compressed.*
+
+# All image formats (uncomment to ignore all images)
+# *.png
+# *.jpg
+# *.jpeg
+# *.webp
+# *.gif
+# *.tiff
+# *.tif
+# *.bmp
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Log files
+*.log
+
+# Build artifacts
+gimage
+gimage-*
+*.tar.gz
+*.zip
+builds/
+release/
