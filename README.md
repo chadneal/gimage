@@ -30,14 +30,35 @@
 
 ### 1. Installation
 
+#### Homebrew (macOS/Linux) - Recommended
+
+```bash
+brew install chadneal/gimage/gimage
+```
+
+#### Upgrade via Homebrew
+
+```bash
+brew upgrade gimage
+```
+
+#### Manual Installation
+
 Download the latest release for your platform:
 
 ```bash
-# macOS
-brew install gimage
-
-# Or download from releases
+# macOS (Intel)
 curl -L https://github.com/chadneal/gimage/releases/latest/download/gimage-darwin-amd64 -o gimage
+chmod +x gimage
+sudo mv gimage /usr/local/bin/
+
+# macOS (Apple Silicon)
+curl -L https://github.com/chadneal/gimage/releases/latest/download/gimage-darwin-arm64 -o gimage
+chmod +x gimage
+sudo mv gimage /usr/local/bin/
+
+# Linux
+curl -L https://github.com/chadneal/gimage/releases/latest/download/gimage-linux-amd64 -o gimage
 chmod +x gimage
 sudo mv gimage /usr/local/bin/
 ```
