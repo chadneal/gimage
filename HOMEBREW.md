@@ -17,7 +17,7 @@ We'll start with a custom tap and eventually submit to homebrew-core for wider d
 ### Prerequisites
 - GitHub repository: `https://github.com/chadneal/gimage` (already exists)
 - Repository must have tagged releases (v1.0.0 already exists)
-- `gh` CLI tool installed: `brew install gh`
+- `gh` CLI tool installed: `brew install gh` (already done)
 
 ### Step 1: Create Tap Repository
 
