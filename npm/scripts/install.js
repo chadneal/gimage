@@ -40,7 +40,14 @@ function getPlatformInfo() {
 async function downloadBinary() {
   const { platform, arch, ext } = getPlatformInfo();
   const binaryName = `gimage${ext}`;
-  const tarballName = `gimage-${platform}-${arch}.tar.gz`;
+
+  // GoReleaser naming format: gimage_VERSION_Platform_arch.tar.gz or .zip for Windows
+  const platformCap = platform.charAt(0).toUpperCase() + platform.slice(1);
+  let archName = arch;
+  if (arch === 'amd64') archName = 'x86_64';
+
+  const extension = platform === 'windows' ? '.zip' : '.tar.gz';
+  const tarballName = `gimage_${VERSION}_${platformCap}_${archName}${extension}`;
   const url = `https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}/${tarballName}`;
 
   const binDir = path.join(__dirname, '..', 'bin');
