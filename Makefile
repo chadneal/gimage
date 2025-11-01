@@ -1,4 +1,4 @@
-.PHONY: build build-all test test-coverage install clean lint benchmark info help build-lambda package-lambda deploy-lambda clean-lambda lambda-logs
+.PHONY: build build-all test test-coverage install clean lint benchmark info help build-lambda package-lambda deploy-lambda clean-lambda lambda-logs release
 
 # Binary name
 BINARY_NAME=gimage
@@ -43,6 +43,7 @@ help:
 	@echo "  info            - Display version and release notes"
 	@echo "  version         - Display current version"
 	@echo "  sync-version    - Sync version to package.json"
+	@echo "  release         - Create and publish a new release"
 	@echo "  lint            - Run linter"
 	@echo "  benchmark       - Run benchmarks"
 	@echo "  lambda-logs     - Tail Lambda function logs"
@@ -213,9 +214,9 @@ version:
 	@echo "Version: $(VERSION)"
 	@echo "Build Number: $(BUILD_NUMBER)"
 
-## sync-version: Sync version to package.json
+## sync-version: Sync version to package.json files
 sync-version:
-	@echo "Syncing version $(VERSION) to package.json..."
+	@echo "Syncing version $(VERSION) to package.json files..."
 	@if [ -f package.json ]; then \
 		sed -i.bak 's/"version": "[^"]*"/"version": "$(VERSION)"/' package.json && \
 		rm package.json.bak && \
@@ -224,4 +225,63 @@ sync-version:
 		echo "✗ package.json not found"; \
 		exit 1; \
 	fi
+	@if [ -f npm/package.json ]; then \
+		sed -i.bak 's/"version": "[^"]*"/"version": "$(VERSION)"/' npm/package.json && \
+		rm npm/package.json.bak && \
+		echo "✓ npm/package.json updated to $(VERSION)"; \
+	else \
+		echo "✗ npm/package.json not found"; \
+	fi
 	@echo "CLI and MCP versions are now in sync: $(VERSION)"
+
+## release: Create and publish a new release
+release:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  Creating Release v$(VERSION)"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "Step 1: Syncing version to package.json files..."
+	@$(MAKE) sync-version
+	@echo ""
+	@echo "Step 2: Checking for uncommitted changes..."
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "✓ Found changes, committing..."; \
+		git add package.json npm/package.json; \
+		git commit -m "Sync version to $(VERSION)"; \
+		git push origin main; \
+		echo "✓ Changes committed and pushed"; \
+	else \
+		echo "✓ No changes to commit"; \
+	fi
+	@echo ""
+	@echo "Step 3: Creating git tag v$(VERSION)..."
+	@git tag -a v$(VERSION) -m "Release v$(VERSION)" || (echo "✗ Tag already exists" && exit 1)
+	@git push origin v$(VERSION)
+	@echo "✓ Tag v$(VERSION) created and pushed"
+	@echo ""
+	@echo "Step 4: Building and publishing with GoReleaser..."
+	@if [ -z "$$GITHUB_TOKEN" ]; then \
+		echo "Setting GITHUB_TOKEN from gh auth..."; \
+		export GITHUB_TOKEN=$$(gh auth token); \
+	fi; \
+	if [ -z "$$HOMEBREW_TAP_TOKEN" ]; then \
+		echo "⚠️  Warning: HOMEBREW_TAP_TOKEN not set"; \
+		echo "   Homebrew formula will not be updated"; \
+		echo "   Set it with: export HOMEBREW_TAP_TOKEN=<token>"; \
+	fi; \
+	GITHUB_TOKEN=$${GITHUB_TOKEN} HOMEBREW_TAP_TOKEN=$${HOMEBREW_TAP_TOKEN} goreleaser release --clean
+	@echo ""
+	@echo "Step 5: Publishing npm package..."
+	@cd npm && npm publish --access public
+	@echo ""
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  ✓ Release v$(VERSION) Complete!"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "GitHub Release: https://github.com/chadneal/gimage/releases/tag/v$(VERSION)"
+	@echo "npm Package: https://www.npmjs.com/package/@chadneal/gimage-mcp/v/$(VERSION)"
+	@echo ""
+	@echo "Installation:"
+	@echo "  Homebrew: brew install chadneal/tap/gimage"
+	@echo "  npm:      npm install -g @chadneal/gimage-mcp"
+	@echo ""
