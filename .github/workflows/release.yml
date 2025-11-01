@@ -96,8 +96,8 @@ jobs:
     name: Publish to npm
     needs: release
     runs-on: ubuntu-latest
-    # Only run if package.json exists
-    if: hashFiles('package.json') != ''
+    # Only run if npm package.json exists
+    if: hashFiles('npm/package.json') != ''
 
     steps:
       - name: Checkout code
@@ -109,10 +109,7 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Copy npm-specific README
-        run: cp README.npm.md README.md
-
       - name: Publish to npm
-        run: npm publish --access public
+        run: cd npm && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
