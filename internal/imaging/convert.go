@@ -9,9 +9,11 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/HugoSmits86/nativewebp"
 	"github.com/disintegration/imaging"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
@@ -88,6 +90,30 @@ func SaveImageWithFormat(img image.Image, path string, format string) error {
 		img = removeTransparency(img)
 	}
 
+	// Handle WebP encoding with nativewebp
+	if format == "webp" {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return fmt.Errorf("failed to get absolute path: %w", err)
+		}
+
+		dir := filepath.Dir(absPath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+
+		outFile, err := os.Create(path)
+		if err != nil {
+			return fmt.Errorf("failed to create file: %w", err)
+		}
+		defer outFile.Close()
+
+		// nativewebp provides lossless VP8L encoding
+		return nativewebp.Encode(outFile, img, &nativewebp.Options{
+			UseExtendedFormat: false, // Basic VP8L format, no metadata
+		})
+	}
+
 	// Use imaging package's Save which handles format detection
 	if format == "jpg" || format == "jpeg" {
 		// For JPEG, use explicit quality setting
@@ -132,9 +158,10 @@ func encodeImage(w io.Writer, img image.Image, format string) error {
 		return gif.Encode(w, img, &gif.Options{NumColors: 256})
 
 	case "webp":
-		// Note: webp encoding requires cgo, so we fall back to PNG for pure Go
-		// For now, use imaging package which handles webp if available
-		return fmt.Errorf("webp encoding not supported in pure Go mode (use PNG or JPEG)")
+		// Use nativewebp for pure Go lossless WebP encoding (VP8L)
+		return nativewebp.Encode(w, img, &nativewebp.Options{
+			UseExtendedFormat: false, // Basic VP8L format
+		})
 
 	case "tiff", "tif":
 		return tiff.Encode(w, img, &tiff.Options{Compression: tiff.Deflate})

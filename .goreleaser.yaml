@@ -1,0 +1,205 @@
+# GoReleaser configuration for gimage
+# Documentation: https://goreleaser.com
+
+# Metadata about the project
+project_name: gimage
+
+# Before hooks - run before building
+before:
+  hooks:
+    # Clean up before building
+    - go mod tidy
+    # Run tests to ensure everything works
+    - go test -short ./...
+
+# Build configuration
+builds:
+  # Main CLI binary
+  - id: gimage
+    main: ./cmd/gimage
+    binary: gimage
+
+    # Build flags
+    ldflags:
+      # Inject version at build time
+      # -s = strip debug info, -w = omit DWARF symbol table (smaller binaries)
+      - -s -w
+      - -X github.com/chadneal/gimage/internal/cli.version={{.Version}}
+
+    # Platforms to build for
+    goos:
+      - linux
+      - darwin    # macOS
+      - windows
+
+    goarch:
+      - amd64     # Intel/AMD 64-bit
+      - arm64     # ARM 64-bit (Apple Silicon, AWS Graviton)
+
+    # Skip certain combinations that don't make sense
+    ignore:
+      - goos: windows
+        goarch: arm64  # Windows ARM64 not commonly used yet
+
+    # Environment variables for build
+    env:
+      - CGO_ENABLED=0  # Pure Go, no C dependencies
+
+# Archive configuration - how to package the binaries
+archives:
+  - id: gimage-archive
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+
+    # What to include in the archive
+    files:
+      - README.md
+      - LICENSE*
+      - CHANGELOG.md
+      - docs/**/*
+
+    # Format per OS
+    format_overrides:
+      - goos: windows
+        format: zip  # Windows users expect .zip
+      # Linux and macOS get .tar.gz by default
+
+# Checksums - create checksums file for verification
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+# Snapshots - for development builds (not tagged releases)
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+# Changelog generation
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Performance Improvements'
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+
+# GitHub release configuration
+release:
+  github:
+    owner: chadneal
+    name: gimage
+
+  # Release notes template
+  header: |
+    ## gimage {{ .Version }}
+
+    AI-powered image generation and processing CLI tool.
+
+    ### Installation
+
+    **macOS (Homebrew):**
+    ```bash
+    brew install chadneal/tap/gimage
+    ```
+
+    **macOS/Linux (Direct Download):**
+    ```bash
+    # Download the appropriate binary for your platform
+    # Extract and move to /usr/local/bin
+    tar -xzf gimage_{{ .Version }}_Darwin_arm64.tar.gz
+    sudo mv gimage /usr/local/bin/
+    ```
+
+    **Windows (Direct Download):**
+    Download the .zip file, extract, and add to your PATH.
+
+    **MCP Server (npm - for Claude Desktop):**
+    ```bash
+    npm install -g @chadneal/gimage-mcp
+    ```
+
+  footer: |
+    ### What's Next?
+
+    Get started with image generation:
+    ```bash
+    # Set up API credentials
+    gimage auth gemini
+
+    # Generate your first image
+    gimage generate "a sunset over mountains"
+    ```
+
+    For detailed documentation, visit: https://github.com/chadneal/gimage
+
+    **Full Changelog**: https://github.com/chadneal/gimage/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+  # Don't create release if this is a pre-release
+  prerelease: auto
+
+  # Naming the release
+  name_template: "v{{.Version}}"
+
+# Homebrew tap configuration
+brews:
+  - name: gimage
+
+    # Repository for Homebrew formula
+    repository:
+      owner: chadneal
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+
+    # Commit message for formula update
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Version }}"
+
+    # Formula template
+    homepage: "https://github.com/chadneal/gimage"
+    description: "AI-powered image generation and processing CLI"
+    license: "MIT"
+
+    # Installation steps
+    install: |
+      bin.install "gimage"
+
+    # Test that the installation worked
+    test: |
+      system "#{bin}/gimage", "--version"
+
+    # Additional information
+    caveats: |
+      To get started with gimage:
+
+      1. Set up API credentials:
+         gimage auth gemini
+
+      2. Get your free Gemini API key:
+         https://aistudio.google.com/app/apikey
+
+      3. Generate your first image:
+         gimage generate "a sunset over mountains"
+
+      For full documentation:
+      https://github.com/chadneal/gimage
+
+# Announce the release (optional integrations)
+announce:
+  skip: false

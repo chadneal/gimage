@@ -17,6 +17,11 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 	tool := mcp.Tool{
 		Name:        "generate_image",
 		Description: "Generate an AI image from a text prompt using Gemini or Vertex AI. Supports multiple models (Gemini 2.5 Flash, Imagen 3, Imagen 4), various sizes up to 2048x2048, and style controls (photorealistic, artistic, anime). Can use negative prompts to exclude unwanted elements and seeds for reproducible generation. IMPORTANT: Always specify an output path (e.g., ~/Desktop/image.png or ~/Documents/image.png) to ensure the file is saved to an accessible location. The tool will automatically try the current directory first, then fall back to the home directory if needed.",
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: false, // Creates new files but doesn't modify existing ones
+			IdempotentHint:  false, // Each call generates a different image
+			ReadOnlyHint:    false, // Writes files to disk
+		},
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{

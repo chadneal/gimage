@@ -149,7 +149,7 @@ The server respects these environment variables:
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew install gimage
+brew install chadneal/tap/gimage
 ```
 
 Then configure Claude Desktop with:

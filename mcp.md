@@ -1621,7 +1621,7 @@ npx @chadneal/gimage-mcp
 
 ```bash
 # Install gimage CLI
-brew install gimage
+brew install chadneal/tap/gimage
 
 # Or download from GitHub releases
 curl -L https://github.com/chadneal/gimage/releases/latest/download/gimage-darwin-arm64 -o gimage
@@ -2447,7 +2447,7 @@ jobs:
 After release, update Homebrew formula:
 
 ```ruby
-# homebrew-gimage/Formula/gimage.rb
+# homebrew-tap/Formula/gimage.rb
 class Gimage < Formula
   desc "AI-powered image generation and processing CLI with MCP server"
   homepage "https://github.com/chadneal/gimage"

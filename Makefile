@@ -2,7 +2,11 @@
 
 # Binary name
 BINARY_NAME=gimage
-VERSION?=0.1.1
+
+# Version: 1.1.[build_number] where build_number is the git commit count
+BUILD_NUMBER=$(shell git rev-list --count HEAD 2>/dev/null || echo "0")
+VERSION?=1.1.$(BUILD_NUMBER)
+
 BUILD_DIR=bin
 
 # Go parameters
@@ -37,6 +41,8 @@ help:
 	@echo "  clean           - Remove build artifacts"
 	@echo "  clean-lambda    - Remove Lambda build artifacts"
 	@echo "  info            - Display version and release notes"
+	@echo "  version         - Display current version"
+	@echo "  sync-version    - Sync version to package.json"
 	@echo "  lint            - Run linter"
 	@echo "  benchmark       - Run benchmarks"
 	@echo "  lambda-logs     - Tail Lambda function logs"
@@ -201,3 +207,21 @@ lambda-invoke-local: build-lambda
 	@echo "  export S3_BUCKET=test-bucket"
 	@echo "  export GEMINI_API_KEY=your_key"
 	@echo "  cd $(BUILD_DIR)/lambda && ./bootstrap"
+
+## version: Display current version
+version:
+	@echo "Version: $(VERSION)"
+	@echo "Build Number: $(BUILD_NUMBER)"
+
+## sync-version: Sync version to package.json
+sync-version:
+	@echo "Syncing version $(VERSION) to package.json..."
+	@if [ -f package.json ]; then \
+		sed -i.bak 's/"version": "[^"]*"/"version": "$(VERSION)"/' package.json && \
+		rm package.json.bak && \
+		echo "✓ package.json updated to $(VERSION)"; \
+	else \
+		echo "✗ package.json not found"; \
+		exit 1; \
+	fi
+	@echo "CLI and MCP versions are now in sync: $(VERSION)"

@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/vertexai/genai"
 	"github.com/chadneal/gimage/pkg/models"
+	"github.com/sony/gobreaker"
 	"github.com/spf13/viper"
 )
 
@@ -14,10 +15,11 @@ import (
 // This requires GOOGLE_APPLICATION_CREDENTIALS environment variable
 // pointing to a service account JSON key file
 type VertexSDKClient struct {
-	client  *genai.Client
-	project string
-	location string
-	verbose bool
+	client         *genai.Client
+	project        string
+	location       string
+	verbose        bool
+	circuitBreaker *gobreaker.CircuitBreaker
 }
 
 // NewVertexSDKClient creates a new Vertex AI SDK client
@@ -63,10 +65,11 @@ func NewVertexSDKClient(ctx context.Context, project, location string) (*VertexS
 	}
 
 	return &VertexSDKClient{
-		client:  client,
-		project: project,
-		location: location,
-		verbose: verbose,
+		client:         client,
+		project:        project,
+		location:       location,
+		verbose:        verbose,
+		circuitBreaker: newCircuitBreaker("VertexSDK"),
 	}, nil
 }
 
@@ -107,12 +110,22 @@ func (c *VertexSDKClient) GenerateImage(ctx context.Context, prompt string, opti
 
 	c.logVerbose("Sending request to Vertex AI...")
 
-	// Generate content with text prompt
-	resp, err := model.GenerateContent(ctx, genai.Text(enhancedPrompt))
+	// Generate content through circuit breaker
+	result, err := c.circuitBreaker.Execute(func() (interface{}, error) {
+		return model.GenerateContent(ctx, genai.Text(enhancedPrompt))
+	})
+
 	if err != nil {
+		// Check if circuit breaker is open
+		if isCircuitBreakerError(err) {
+			c.logVerbose("Circuit breaker is open, failing fast")
+			return nil, fmt.Errorf("API circuit breaker is open (too many failures): %w", err)
+		}
 		c.logVerbose("Generation failed: %v", err)
 		return nil, fmt.Errorf("failed to generate image: %w\nHint: Check that billing is enabled and you have Vertex AI User role", err)
 	}
+
+	resp := result.(*genai.GenerateContentResponse)
 
 	// Check if we got candidates
 	if len(resp.Candidates) == 0 {

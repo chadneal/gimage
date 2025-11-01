@@ -361,6 +361,24 @@ Format: `**key**: value` on each line. Comments start with `#`.
 
 ## Security & Best Practices
 
+### Documentation and Dates
+- **ALWAYS use the system `date` command to get the current date** when creating or updating documentation
+- Never hardcode dates in documentation - they become outdated immediately
+- Use `date +%Y-%m-%d` for YYYY-MM-DD format (ISO 8601 standard)
+- When updating CHANGELOG.md, RELEASING.md, or any documentation with dates, run the date command first
+
+Example workflow:
+```bash
+# Get current date for documentation
+date +%Y-%m-%d
+# Output: 2025-11-01
+
+# Use this date in CHANGELOG.md entries
+## [0.2.0] - 2025-11-01
+```
+
+**Why this matters**: Hardcoded dates quickly become incorrect and make documentation confusing. Always fetch the current system date dynamically.
+
 ### Credentials
 - Never log API keys or credentials
 - Config file automatically created with 0600 permissions (owner read/write only)
@@ -415,12 +433,36 @@ for _, file := range files {
 wg.Wait()
 ```
 
+## Git Usage Policy
+
+**IMPORTANT**: Do NOT use git commands (commit, push, tag, etc.) unless the user explicitly asks for it.
+
+**Examples of when NOT to use git**:
+- After creating or modifying files
+- After completing a feature implementation
+- After fixing bugs or making improvements
+- When you think "this should be committed"
+
+**Examples of when TO use git**:
+- User says "commit this"
+- User says "push to GitHub"
+- User says "create a git tag"
+- User explicitly requests git operations in their message
+
+**Why**: The user controls when and how code is committed. Automatic commits can:
+- Interrupt their workflow
+- Create unwanted commit history
+- Commit incomplete or experimental changes
+- Bypass their review process
+
+If you complete work and think it should be committed, simply inform the user what was done and let them decide whether to commit.
+
 ## Release Process
 
 1. Update version in code
 2. Run full test suite: `make test`
 3. Build all platforms: `make build-all`
-4. Create git tag: `git tag v1.x.x`
+4. Create git tag: `git tag v1.x.x` (only when user requests)
 5. GitHub Actions handles release automation
 
 ## Implementation Phases

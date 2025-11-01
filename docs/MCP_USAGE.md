@@ -13,7 +13,7 @@ npm install -g @chadneal/gimage-mcp
 
 **Option B: Homebrew**
 ```bash
-brew install gimage
+brew install chadneal/tap/gimage
 ```
 
 **Option C: Manual Download**

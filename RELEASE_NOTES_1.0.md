@@ -161,8 +161,8 @@ gimage auth vertex
 
 1. **Homebrew** (macOS/Linux - Recommended):
    ```bash
-   brew tap chadneal/gimage
-   brew install gimage
+   # Tap is added automatically
+   brew install chadneal/tap/gimage
    ```
 
 2. **npm Package** (Cross-platform MCP server):
@@ -282,8 +282,8 @@ Comprehensive documentation included:
 
 **1. Install via Homebrew**:
 ```bash
-brew tap chadneal/gimage
-brew install gimage
+# Tap is added automatically
+brew install chadneal/tap/gimage
 ```
 
 **2. Configure Authentication**:
@@ -453,7 +453,7 @@ Built with these excellent open-source libraries:
 - **Authentication Setup**: https://github.com/chadneal/gimage#setup-authentication
 
 ### Distribution
-- **Homebrew Tap**: https://github.com/chadneal/homebrew-gimage
+- **Homebrew Tap**: https://github.com/chadneal/homebrew-tap
 - **npm Package**: https://www.npmjs.com/package/@chadneal/gimage-mcp
 - **GitHub Releases**: https://github.com/chadneal/gimage/releases
 
@@ -485,7 +485,7 @@ Gimage v1.0 provides a comprehensive, production-ready solution for AI-powered i
 **Get Started Today**:
 ```bash
 # Install
-brew tap chadneal/gimage && brew install gimage
+# Tap is added automatically && brew install chadneal/tap/gimage
 
 # Authenticate
 gimage auth gemini

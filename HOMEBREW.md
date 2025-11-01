@@ -5,14 +5,14 @@ This document outlines the complete strategy for distributing `gimage` via Homeb
 ## Overview
 
 Homebrew distribution involves two main approaches:
-1. **Custom Tap** (Current): `brew tap chadneal/gimage && brew install gimage`
+1. **Custom Tap** (Current): `# Tap is added automatically && brew install gimage`
 2. **Homebrew Core** (Official/Long-term): `brew install gimage` (no tap required)
 
 We'll start with a custom tap and eventually submit to homebrew-core for wider distribution.
 
 ---
 
-## Phase 1: Create Custom Tap (homebrew-gimage)
+## Phase 1: Create Custom Tap (homebrew-tap)
 
 ### Prerequisites
 - GitHub repository: `https://github.com/chadneal/gimage` (already exists)
@@ -26,7 +26,7 @@ We'll start with a custom tap and eventually submit to homebrew-core for wider d
 brew tap-new chadneal/gimage
 
 # This creates:
-# /usr/local/Homebrew/Library/Taps/chadneal/homebrew-gimage/
+# /usr/local/Homebrew/Library/Taps/chadneal/homebrew-tap/
 # (or /opt/homebrew/... on Apple Silicon)
 
 # Navigate to tap directory
@@ -35,9 +35,9 @@ cd "$(brew --repository chadneal/gimage)"
 
 **Expected Output:**
 ```
-Initialized empty Git repository in /opt/homebrew/Library/Taps/chadneal/homebrew-gimage/.git/
+Initialized empty Git repository in /opt/homebrew/Library/Taps/chadneal/homebrew-tap/.git/
 ==> Created chadneal/gimage
-/opt/homebrew/Library/Taps/chadneal/homebrew-gimage
+/opt/homebrew/Library/Taps/chadneal/homebrew-tap
 ```
 
 ### Step 2: Create Formula
@@ -100,17 +100,17 @@ curl -L https://github.com/chadneal/gimage/archive/refs/tags/v1.0.0.tar.gz | sha
 
 ```bash
 # Audit the formula
-brew audit --new --formula chadneal/gimage/gimage
+brew audit --new --formula chadneal/tap/gimage
 
 # Install from source to test
-HOMEBREW_NO_INSTALL_FROM_API=1 brew install --build-from-source --verbose chadneal/gimage/gimage
+HOMEBREW_NO_INSTALL_FROM_API=1 brew install --build-from-source --verbose chadneal/tap/gimage
 
 # Test the installation
 gimage --version
 gimage --help
 
 # Run formula tests
-brew test chadneal/gimage/gimage
+brew test chadneal/tap/gimage
 
 # Uninstall for further testing
 brew uninstall gimage
@@ -123,7 +123,7 @@ brew uninstall gimage
 cd "$(brew --repository chadneal/gimage)"
 
 # Create GitHub repository and push
-gh repo create chadneal/homebrew-gimage \
+gh repo create chadneal/homebrew-tap \
   --push \
   --public \
   --source "$(brew --repository chadneal/gimage)" \
@@ -135,9 +135,9 @@ git remote -v
 
 **Expected Output:**
 ```
-✓ Created repository chadneal/homebrew-gimage on GitHub
-✓ Added remote https://github.com/chadneal/homebrew-gimage.git
-✓ Pushed commits to https://github.com/chadneal/homebrew-gimage.git
+✓ Created repository chadneal/homebrew-tap on GitHub
+✓ Added remote https://github.com/chadneal/homebrew-tap.git
+✓ Pushed commits to https://github.com/chadneal/homebrew-tap.git
 ```
 
 ---
@@ -150,11 +150,11 @@ Once the tap is published, users can install gimage:
 
 ```bash
 # Method 1: Tap first, then install (Recommended - cleaner)
-brew tap chadneal/gimage
-brew install gimage
+# Tap is added automatically
+brew install chadneal/tap/gimage
 
 # Method 2: One-line install (taps automatically)
-brew install chadneal/gimage/gimage
+brew install chadneal/tap/gimage
 ```
 
 ### Update Formula for New Releases
@@ -169,7 +169,7 @@ cd "$(brew --repository chadneal/gimage)"
 brew bump-formula-pr \
   --url=https://github.com/chadneal/gimage/archive/refs/tags/v1.1.0.tar.gz \
   --sha256=NEW_SHA256 \
-  chadneal/gimage/gimage
+  chadneal/tap/gimage
 
 # Or manually update Formula/gimage.rb and commit
 git add Formula/gimage.rb
@@ -275,7 +275,7 @@ gh pr create --fill
 
 ### Automated Version Bumps
 
-Create GitHub Actions in `homebrew-gimage` repo:
+Create GitHub Actions in `homebrew-tap` repo:
 
 **.github/workflows/bump-formula.yml**
 ```yaml
@@ -300,7 +300,7 @@ jobs:
           brew bump-formula-pr \
             --url=https://github.com/chadneal/gimage/archive/refs/tags/${{ github.event.client_payload.version }}.tar.gz \
             --sha256=${{ github.event.client_payload.sha256 }} \
-            chadneal/gimage/gimage
+            chadneal/tap/gimage
 ```
 
 ### Test Suite in Tap
@@ -337,8 +337,8 @@ end
 
    ### Homebrew (macOS/Linux)
    ```bash
-   brew tap chadneal/gimage
-   brew install gimage
+   # Tap is added automatically
+   brew install chadneal/tap/gimage
    ```
 
    ### Upgrade
@@ -406,7 +406,7 @@ HOMEBREW_NO_INSTALL_FROM_API=1 brew install --build-from-source --interactive --
 ### Issue: Formula Not Found
 ```bash
 # Ensure tap is properly set up
-brew tap chadneal/gimage
+# Tap is added automatically
 brew tap  # Verify tap is listed
 ```
 

@@ -145,7 +145,7 @@ func TestNormalizeFormat(t *testing.T) {
 		{
 			name:   "without dot",
 			format: "jpg",
-			want:   "jpg",
+			want:   "jpeg",
 		},
 		{
 			name:   "uppercase",

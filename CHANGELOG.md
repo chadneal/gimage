@@ -2,7 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.1] - 2024-10-30
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+(empty - ready for next release)
+
+## [1.1.9] - 2025-11-01
+
+### Added
+- **Automated version synchronization** between CLI and npm package
+- **Build number versioning** using git commit count (format: 1.1.[build])
+- WebP support via nativewebp library (pure Go, zero C dependencies)
+- CLI `convert` command for format conversion
+- Comprehensive integration tests for WebP
+- End-to-end tests for all 10 MCP tools
+- Help text displayed when running `gimage` with no arguments
+- Complete release automation with GoReleaser
+- GitHub Actions workflows for CI and releases
+- npm package for MCP server distribution
+- Homebrew tap for macOS/Linux distribution
+- Comprehensive RELEASING.md guide
+- `make version` and `make sync-version` commands
+
+### Changed
+- **Version numbering scheme** to 1.1.[commit_count] for automatic sync
+- Root command now shows help instead of crashing when run without arguments
+- All MCP tools now support WebP output format
+- Homebrew tap repository renamed to `homebrew-tap` (conventional naming)
+- Documentation updated for new distribution methods
+
+### Fixed
+- Root command exit behavior
+- WebP encoding in all contexts (CLI, MCP server, programmatic usage)
+- Version synchronization between CLI binary and npm package
+
+## [0.1.1] - 2025-11-01
 
 ### Added
 - Automatic format conversion based on output file extension
@@ -17,7 +53,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - SaveImage now automatically converts image format based on file extension
 
-## [0.1.0] - 2024-10-30
+## [0.1.0] - 2025-11-01
 
 ### Added
 - Initial release of gimage CLI tool

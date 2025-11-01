@@ -17,6 +17,10 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "gimage",
 	Short: "AI-powered image generation and processing CLI",
+	Run: func(cmd *cobra.Command, args []string) {
+		// Show help when run with no arguments
+		cmd.Help()
+	},
 	Long: `gimage is a Go-based CLI tool for AI-powered image generation and processing.
 
 FEATURES:

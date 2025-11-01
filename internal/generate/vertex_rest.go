@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chadneal/gimage/pkg/models"
+	"github.com/sony/gobreaker"
 	"github.com/spf13/viper"
 )
 
@@ -21,12 +22,13 @@ const vertexAIPlatformEndpoint = "https://%s-aiplatform.googleapis.com/v1/projec
 
 // VertexRESTClient uses Vertex AI REST API for image generation
 type VertexRESTClient struct {
-	apiKey     string
-	projectID  string
-	location   string
-	model      string
-	httpClient *http.Client
-	verbose    bool
+	apiKey         string
+	projectID      string
+	location       string
+	model          string
+	httpClient     *http.Client
+	verbose        bool
+	circuitBreaker *gobreaker.CircuitBreaker
 }
 
 // NewVertexRESTClient creates a new Vertex REST API client
@@ -59,6 +61,7 @@ func NewVertexRESTClient(apiKey, projectID, location string) (*VertexRESTClient,
 		httpClient: &http.Client{
 			Timeout: 2 * time.Minute,
 		},
+		circuitBreaker: newCircuitBreaker("VertexAPI"),
 	}, nil
 }
 
@@ -85,17 +88,27 @@ func (c *VertexRESTClient) GenerateImage(ctx context.Context, prompt string, opt
 		modelName = options.Model
 	}
 
-	// Generate image with retry logic
+	// Generate image with circuit breaker and retry logic
 	var lastErr error
 	backoff := retryBackoffInitial
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		img, err := c.generateWithRetry(ctx, modelName, enhancedPrompt, options)
+		// Execute through circuit breaker
+		result, err := c.circuitBreaker.Execute(func() (interface{}, error) {
+			return c.generateWithRetry(ctx, modelName, enhancedPrompt, options)
+		})
+
 		if err == nil {
-			return img, nil
+			return result.(*models.GeneratedImage), nil
 		}
 
 		lastErr = err
+
+		// Check if circuit breaker is open
+		if isCircuitBreakerError(err) {
+			c.logVerbose("Circuit breaker is open, failing fast")
+			return nil, fmt.Errorf("API circuit breaker is open (too many failures): %w", err)
+		}
 
 		// Check if error is retryable
 		if !isRetryableError(err) {

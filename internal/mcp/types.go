@@ -34,6 +34,11 @@ const (
 	MethodGetPrompt     = "prompts/get"
 )
 
+// MCP Protocol Notifications
+const (
+	NotificationToolsListChanged = "notifications/tools/list_changed"
+)
+
 // MCP Protocol Version
 const ProtocolVersion = "2024-11-05"
 
@@ -56,11 +61,24 @@ func (e *ToolError) Error() string {
 	return e.Message
 }
 
+// ToolAnnotations provides hints to LLMs about tool behavior (MCP spec 2025-06-18)
+type ToolAnnotations struct {
+	// DestructiveHint indicates if the tool makes destructive changes (deletes, overwrites)
+	DestructiveHint bool `json:"destructiveHint,omitempty"`
+
+	// IdempotentHint indicates if calling the tool multiple times with same args has same effect
+	IdempotentHint bool `json:"idempotentHint,omitempty"`
+
+	// ReadOnlyHint indicates if the tool only reads data without making changes
+	ReadOnlyHint bool `json:"readOnlyHint,omitempty"`
+}
+
 // Tool represents an MCP tool
 type Tool struct {
 	Name        string
 	Description string
 	InputSchema map[string]interface{}
+	Annotations *ToolAnnotations // Optional tool annotations (MCP spec 2025-06-18)
 	Handler     ToolHandler
 }
 

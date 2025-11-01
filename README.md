@@ -42,17 +42,14 @@ Production-ready serverless API for web applications and remote processing.
 #### Homebrew (macOS/Linux) - Recommended
 
 ```bash
-# Add the tap
-brew tap chadneal/gimage
-
-# Install gimage
-brew install gimage
+# Install gimage (tap is added automatically)
+brew install chadneal/tap/gimage
 ```
 
 #### Upgrade via Homebrew
 
 ```bash
-brew upgrade gimage
+brew upgrade chadneal/tap/gimage
 ```
 
 #### Manual Installation
@@ -271,11 +268,8 @@ This is the cleanest approach - install gimage CLI via Homebrew, then use it as 
 
 **Step 1: Install gimage via Homebrew**
 ```bash
-# Add the tap
-brew tap chadneal/gimage
-
-# Install gimage
-brew install gimage
+# Install gimage (tap is added automatically)
+brew install chadneal/tap/gimage
 
 # Verify installation
 gimage --version
@@ -300,7 +294,7 @@ Edit your configuration file:
 
 **Benefits**:
 - Uses the same gimage installation for both CLI and MCP
-- Easy updates with `brew upgrade gimage`
+- Easy updates with `brew upgrade chadneal/tap/gimage`
 - No duplicate binaries
 
 #### Method 2: npm Package (Alternative - Works on all platforms)

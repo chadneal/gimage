@@ -358,6 +358,6 @@ gimage/
 
 ---
 
-**Last Updated**: 2025-10-31
+**Last Updated**: 2025-11-01
 **Documentation Version**: 0.1.1
 **API Version**: 0.1.1

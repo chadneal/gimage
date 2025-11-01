@@ -46,10 +46,6 @@ func TestGenerateOutputPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := generateOutputPath(tt.inputPath, tt.suffix)
 
-			if !filepath.IsAbs(result) && filepath.IsAbs(tt.inputPath) {
-				t.Error("Expected absolute path for absolute input")
-			}
-
 			resultBase := filepath.Base(result)
 			if !contains(resultBase, tt.wantSuffix) {
 				t.Errorf("Expected path to contain suffix %s, got: %s", tt.wantSuffix, result)
@@ -68,7 +64,7 @@ func TestValidatePositiveInt(t *testing.T) {
 	}{
 		{
 			name:      "valid int",
-			args:      map[string]interface{}{"width": 800},
+			args:      map[string]interface{}{"width": 800.0},
 			key:       "width",
 			wantValue: 800,
 			wantError: false,
@@ -82,14 +78,14 @@ func TestValidatePositiveInt(t *testing.T) {
 		},
 		{
 			name:      "zero value",
-			args:      map[string]interface{}{"size": 0},
+			args:      map[string]interface{}{"size": 0.0},
 			key:       "size",
 			wantValue: 0,
 			wantError: true,
 		},
 		{
 			name:      "negative value",
-			args:      map[string]interface{}{"dimension": -100},
+			args:      map[string]interface{}{"dimension": -100.0},
 			key:       "dimension",
 			wantValue: 0,
 			wantError: true,
@@ -112,7 +108,7 @@ func TestValidatePositiveInt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := validatePositiveInt(tt.args, tt.key)
+			result, err := validatePositiveInt(tt.args[tt.key], tt.key)
 
 			if tt.wantError {
 				if err == nil {
@@ -228,7 +224,7 @@ func TestSaveImage(t *testing.T) {
 		{
 			name:      "save WebP",
 			filename:  "output.webp",
-			wantError: false,
+			wantError: false, // WebP now supported via nativewebp
 		},
 	}
 

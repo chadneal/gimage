@@ -60,6 +60,11 @@ func RegisterBatchCompressTool(server *mcp.MCPServer) {
 	tool := mcp.Tool{
 		Name:        "batch_compress",
 		Description: "Compress multiple images in a directory concurrently to reduce file sizes. Processes all image files with specified quality setting. Reports total space saved across all images. Uses parallel workers for efficient processing.",
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: true,  // Overwrites files in output directory
+			IdempotentHint:  true,  // Same inputs produce same outputs
+			ReadOnlyHint:    false, // Writes files to disk
+		},
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{

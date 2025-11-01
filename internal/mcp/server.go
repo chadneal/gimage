@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/chadneal/gimage/internal/config"
+	"github.com/chadneal/gimage/internal/observability"
 )
 
 // MCPServer implements the Model Context Protocol server
@@ -25,6 +26,9 @@ type MCPServer struct {
 
 // NewMCPServer creates a new MCP server instance
 func NewMCPServer(name, version string, cfg *config.Config, verbose bool) *MCPServer {
+	// Initialize structured logging
+	observability.Initialize(verbose)
+
 	return &MCPServer{
 		name:    name,
 		version: version,
@@ -40,9 +44,11 @@ func NewMCPServer(name, version string, cfg *config.Config, verbose bool) *MCPSe
 // RegisterTool adds a tool to the server
 func (s *MCPServer) RegisterTool(tool Tool) {
 	s.tools[tool.Name] = tool
-	if s.verbose {
-		s.logInfo("Registered tool: %s", tool.Name)
-	}
+	logger := observability.Logger(context.Background())
+	logger.Debug().
+		Str("component", "mcp-server").
+		Str("tool", tool.Name).
+		Msg("Registered tool")
 }
 
 // GetTool returns a tool by name, or nil if not found
@@ -55,56 +61,73 @@ func (s *MCPServer) GetTool(name string) *Tool {
 
 // Start begins listening for MCP protocol messages
 func (s *MCPServer) Start(ctx context.Context) error {
-	if s.verbose {
-		s.logInfo("MCP server starting")
-		s.logInfo("Protocol version: %s", ProtocolVersion)
-		s.logInfo("Registered tools: %d", len(s.tools))
-	}
+	logger := observability.LoggerWithComponent(ctx, "mcp-server")
+
+	logger.Info().
+		Str("protocol_version", ProtocolVersion).
+		Int("tools_count", len(s.tools)).
+		Msg("MCP server starting")
 
 	scanner := bufio.NewScanner(s.stdin)
 
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
+			logger.Info().Msg("Server shutting down (context cancelled)")
 			return ctx.Err()
 		default:
 		}
 
 		line := scanner.Bytes()
 
-		if s.verbose {
-			s.logInfo("Received request: %s", string(line))
-		}
+		logger.Debug().
+			Str("raw_request", string(line)).
+			Msg("Received request")
 
 		var request JSONRPCRequest
 		if err := json.Unmarshal(line, &request); err != nil {
-			s.logError("Failed to parse request: %v", err)
+			logger.Error().
+				Err(err).
+				Str("raw_request", string(line)).
+				Msg("Failed to parse request")
 			continue
 		}
+
+		// Generate request ID for tracing
+		requestID := observability.GenerateRequestID()
+		requestCtx := observability.WithRequestID(ctx, requestID)
+		reqLogger := observability.LoggerWithComponent(requestCtx, "mcp-server")
 
 		// CRITICAL: Detect notifications vs requests
 		// Notifications have NO id field and must NOT receive responses
 		if request.ID == nil {
-			if s.verbose {
-				s.logInfo("Received notification: %s (no response will be sent)", request.Method)
-			}
+			reqLogger.Debug().
+				Str("method", request.Method).
+				Msg("Received notification (no response will be sent)")
 			// Handle notification but DO NOT send response
-			s.handleNotification(ctx, &request)
+			s.handleNotification(requestCtx, &request)
 			continue
 		}
 
+		reqLogger.Debug().
+			Str("method", request.Method).
+			Interface("id", request.ID).
+			Msg("Received request")
+
 		// This is a request (has ID), send a response
-		response := s.handleRequest(ctx, &request)
+		response := s.HandleRequest(requestCtx, &request)
 
 		responseBytes, err := json.Marshal(response)
 		if err != nil {
-			s.logError("Failed to marshal response: %v", err)
+			reqLogger.Error().
+				Err(err).
+				Msg("Failed to marshal response")
 			continue
 		}
 
-		if s.verbose {
-			s.logInfo("Sending response: %s", string(responseBytes))
-		}
+		reqLogger.Debug().
+			Str("response", string(responseBytes)).
+			Msg("Sending response")
 
 		fmt.Fprintln(s.stdout, string(responseBytes))
 	}
@@ -114,18 +137,37 @@ func (s *MCPServer) Start(ctx context.Context) error {
 
 // handleNotification processes MCP notifications (messages with no ID that expect no response)
 func (s *MCPServer) handleNotification(ctx context.Context, req *JSONRPCRequest) {
+	logger := observability.LoggerWithComponent(ctx, "mcp-server")
+
 	// According to MCP spec, notifications are fire-and-forget
 	// We log them but take no action
-	if s.verbose {
-		s.logInfo("Notification received: %s", req.Method)
-	}
+	logger.Info().
+		Str("method", req.Method).
+		Msg("Notification received (no response sent)")
 	// No response is sent for notifications
 }
 
-func (s *MCPServer) logInfo(format string, args ...interface{}) {
-	fmt.Fprintf(s.stderr, "[gimage-mcp] "+format+"\n", args...)
-}
+// NotifyToolsListChanged sends a notification to the client that the tool list has changed
+// This is used when tools are dynamically added or removed during runtime
+func (s *MCPServer) NotifyToolsListChanged() error {
+	logger := observability.Logger(context.Background())
 
-func (s *MCPServer) logError(format string, args ...interface{}) {
-	fmt.Fprintf(s.stderr, "[gimage-mcp] ERROR: "+format+"\n", args...)
+	notification := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  NotificationToolsListChanged,
+	}
+
+	notificationBytes, err := json.Marshal(notification)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Failed to marshal tools/list_changed notification")
+		return fmt.Errorf("failed to marshal notification: %w", err)
+	}
+
+	logger.Debug().
+		Msg("Sending tools/list_changed notification")
+
+	fmt.Fprintln(s.stdout, string(notificationBytes))
+	return nil
 }

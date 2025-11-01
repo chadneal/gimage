@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/disintegration/imaging"
+	gimaging "github.com/chadneal/gimage/internal/imaging"
 )
 
 // generateOutputPath creates an output path based on input and suffix
@@ -77,6 +78,16 @@ func loadImage(path string) (image.Image, error) {
 
 // saveImage saves an image to a file
 func saveImage(img image.Image, path string) error {
+	// Use internal/imaging package which now supports WebP via nativewebp
+	format := filepath.Ext(path)
+	format = strings.ToLower(strings.TrimPrefix(format, "."))
+
+	// For WebP, use our custom implementation
+	if format == "webp" {
+		return gimaging.SaveImageWithFormat(img, path, format)
+	}
+
+	// For other formats, use imaging.Save
 	return imaging.Save(img, path)
 }
 

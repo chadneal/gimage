@@ -71,7 +71,7 @@ func TestHandleInitialize(t *testing.T) {
 		Params:  map[string]interface{}{},
 	}
 
-	response := server.handleRequest(context.Background(), request)
+	response := server.HandleRequest(context.Background(), request)
 
 	if response.Error != nil {
 		t.Errorf("Initialize request failed: %v", response.Error)
@@ -114,7 +114,7 @@ func TestHandleListTools(t *testing.T) {
 		Params:  map[string]interface{}{},
 	}
 
-	response := server.handleRequest(context.Background(), request)
+	response := server.HandleRequest(context.Background(), request)
 
 	if response.Error != nil {
 		t.Errorf("List tools request failed: %v", response.Error)
@@ -175,7 +175,7 @@ func TestHandleCallTool(t *testing.T) {
 		Params:  parseParams(`{"name": "echo", "arguments": {"message": "hello"}}`),
 	}
 
-	response := server.handleRequest(context.Background(), request)
+	response := server.HandleRequest(context.Background(), request)
 
 	if response.Error != nil {
 		t.Errorf("Call tool request failed: %v", response.Error)
@@ -227,7 +227,7 @@ func TestHandleCallToolNotFound(t *testing.T) {
 		Params:  parseParams(`{"name": "nonexistent", "arguments": {}}`),
 	}
 
-	response := server.handleRequest(context.Background(), request)
+	response := server.HandleRequest(context.Background(), request)
 
 	if response.Error == nil {
 		t.Error("Expected error for nonexistent tool, got nil")
@@ -249,7 +249,7 @@ func TestHandleInvalidMethod(t *testing.T) {
 		Params:  parseParams(`{}`),
 	}
 
-	response := server.handleRequest(context.Background(), request)
+	response := server.HandleRequest(context.Background(), request)
 
 	if response.Error == nil {
 		t.Error("Expected error for invalid method, got nil")
@@ -356,7 +356,7 @@ func TestToolHandlerError(t *testing.T) {
 		Params:  parseParams(`{"name": "error_tool", "arguments": {}}`),
 	}
 
-	response := server.handleRequest(context.Background(), request)
+	response := server.HandleRequest(context.Background(), request)
 
 	if response.Error == nil {
 		t.Error("Expected error from tool handler, got nil")
