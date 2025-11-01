@@ -17,10 +17,10 @@ info:
 
   contact:
     name: Gimage Support
-    url: https://github.com/chadneal/gimage
+    url: https://github.com/apresai/gimage
   license:
     name: MIT
-    url: https://github.com/chadneal/gimage/blob/main/LICENSE
+    url: https://github.com/apresai/gimage/blob/main/LICENSE
 
 servers:
   - url: https://your-api-id.execute-api.us-east-1.amazonaws.com/prod

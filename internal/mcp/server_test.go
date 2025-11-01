@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chadneal/gimage/internal/config"
+	"github.com/apresai/gimage/internal/config"
 )
 
 // Helper to parse JSON params

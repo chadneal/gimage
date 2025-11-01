@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/chadneal/gimage/internal/config"
-	"github.com/chadneal/gimage/internal/observability"
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/observability"
 )
 
 // MCPServer implements the Model Context Protocol server

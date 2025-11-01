@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/disintegration/imaging"
-	gimaging "github.com/chadneal/gimage/internal/imaging"
+	gimaging "github.com/apresai/gimage/internal/imaging"
 )
 
 // generateOutputPath creates an output path based on input and suffix

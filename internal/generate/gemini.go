@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chadneal/gimage/pkg/models"
+	"github.com/apresai/gimage/pkg/models"
 	"google.golang.org/genai"
 )
 

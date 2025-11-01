@@ -15,7 +15,7 @@ We'll start with a custom tap and eventually submit to homebrew-core for wider d
 ## Phase 1: Create Custom Tap (homebrew-tap)
 
 ### Prerequisites
-- GitHub repository: `https://github.com/chadneal/gimage` (already exists)
+- GitHub repository: `https://github.com/apresai/gimage` (already exists)
 - Repository must have tagged releases (v1.0.0 already exists)
 - `gh` CLI tool installed: `brew install gh` (already done)
 
@@ -23,33 +23,33 @@ We'll start with a custom tap and eventually submit to homebrew-core for wider d
 
 ```bash
 # Create the tap locally
-brew tap-new chadneal/gimage
+brew tap-new apresai/gimage
 
 # This creates:
-# /usr/local/Homebrew/Library/Taps/chadneal/homebrew-tap/
+# /usr/local/Homebrew/Library/Taps/apresai/homebrew-tap/
 # (or /opt/homebrew/... on Apple Silicon)
 
 # Navigate to tap directory
-cd "$(brew --repository chadneal/gimage)"
+cd "$(brew --repository apresai/gimage)"
 ```
 
 **Expected Output:**
 ```
-Initialized empty Git repository in /opt/homebrew/Library/Taps/chadneal/homebrew-tap/.git/
-==> Created chadneal/gimage
-/opt/homebrew/Library/Taps/chadneal/homebrew-tap
+Initialized empty Git repository in /opt/homebrew/Library/Taps/apresai/homebrew-tap/.git/
+==> Created apresai/gimage
+/opt/homebrew/Library/Taps/apresai/homebrew-tap
 ```
 
 ### Step 2: Create Formula
 
 ```bash
 # Option A: Create formula from release URL
-brew create https://github.com/chadneal/gimage/archive/refs/tags/v1.0.0.tar.gz \
-  --tap chadneal/gimage \
+brew create https://github.com/apresai/gimage/archive/refs/tags/v1.0.0.tar.gz \
+  --tap apresai/gimage \
   --set-name gimage
 
 # Option B: Create formula manually
-cd "$(brew --repository chadneal/gimage)"
+cd "$(brew --repository apresai/gimage)"
 mkdir -p Formula
 touch Formula/gimage.rb
 ```
@@ -61,17 +61,17 @@ Edit `Formula/gimage.rb`:
 ```ruby
 class Gimage < Formula
   desc "AI-powered image generation and processing CLI"
-  homepage "https://github.com/chadneal/gimage"
-  url "https://github.com/chadneal/gimage/archive/refs/tags/v1.0.0.tar.gz"
+  homepage "https://github.com/apresai/gimage"
+  url "https://github.com/apresai/gimage/archive/refs/tags/v1.0.0.tar.gz"
   sha256 "PLACEHOLDER_SHA256"  # Update with actual SHA
   license "MIT"  # Update based on your LICENSE file
-  head "https://github.com/chadneal/gimage.git", branch: "main"
+  head "https://github.com/apresai/gimage.git", branch: "main"
 
   depends_on "go" => :build
 
   def install
     # Build the binary
-    system "go", "build", *std_go_args(ldflags: "-s -w -X github.com/chadneal/gimage/internal/cli.version=#{version}"), "./cmd/gimage"
+    system "go", "build", *std_go_args(ldflags: "-s -w -X github.com/apresai/gimage/internal/cli.version=#{version}"), "./cmd/gimage"
 
     # Generate shell completions
     generate_completions_from_executable(bin/"gimage", "completion")
@@ -91,7 +91,7 @@ end
 
 ```bash
 # Download and compute SHA256
-curl -L https://github.com/chadneal/gimage/archive/refs/tags/v1.0.0.tar.gz | shasum -a 256
+curl -L https://github.com/apresai/gimage/archive/refs/tags/v1.0.0.tar.gz | shasum -a 256
 
 # Update the sha256 in Formula/gimage.rb with the output
 ```
@@ -100,17 +100,17 @@ curl -L https://github.com/chadneal/gimage/archive/refs/tags/v1.0.0.tar.gz | sha
 
 ```bash
 # Audit the formula
-brew audit --new --formula chadneal/tap/gimage
+brew audit --new --formula apresai/tap/gimage
 
 # Install from source to test
-HOMEBREW_NO_INSTALL_FROM_API=1 brew install --build-from-source --verbose chadneal/tap/gimage
+HOMEBREW_NO_INSTALL_FROM_API=1 brew install --build-from-source --verbose apresai/tap/gimage
 
 # Test the installation
 gimage --version
 gimage --help
 
 # Run formula tests
-brew test chadneal/tap/gimage
+brew test apresai/tap/gimage
 
 # Uninstall for further testing
 brew uninstall gimage
@@ -120,13 +120,13 @@ brew uninstall gimage
 
 ```bash
 # Navigate to tap directory
-cd "$(brew --repository chadneal/gimage)"
+cd "$(brew --repository apresai/gimage)"
 
 # Create GitHub repository and push
-gh repo create chadneal/homebrew-tap \
+gh repo create apresai/homebrew-tap \
   --push \
   --public \
-  --source "$(brew --repository chadneal/gimage)" \
+  --source "$(brew --repository apresai/gimage)" \
   --description "Homebrew tap for gimage - AI-powered image generation and processing CLI"
 
 # Verify
@@ -135,9 +135,9 @@ git remote -v
 
 **Expected Output:**
 ```
-✓ Created repository chadneal/homebrew-tap on GitHub
-✓ Added remote https://github.com/chadneal/homebrew-tap.git
-✓ Pushed commits to https://github.com/chadneal/homebrew-tap.git
+✓ Created repository apresai/homebrew-tap on GitHub
+✓ Added remote https://github.com/apresai/homebrew-tap.git
+✓ Pushed commits to https://github.com/apresai/homebrew-tap.git
 ```
 
 ---
@@ -151,10 +151,10 @@ Once the tap is published, users can install gimage:
 ```bash
 # Method 1: Tap first, then install (Recommended - cleaner)
 # Tap is added automatically
-brew install chadneal/tap/gimage
+brew install apresai/tap/gimage
 
 # Method 2: One-line install (taps automatically)
-brew install chadneal/tap/gimage
+brew install apresai/tap/gimage
 ```
 
 ### Update Formula for New Releases
@@ -163,13 +163,13 @@ When releasing a new version (e.g., v1.1.0):
 
 ```bash
 # Navigate to tap
-cd "$(brew --repository chadneal/gimage)"
+cd "$(brew --repository apresai/gimage)"
 
 # Use bump-formula-pr for automated updates
 brew bump-formula-pr \
-  --url=https://github.com/chadneal/gimage/archive/refs/tags/v1.1.0.tar.gz \
+  --url=https://github.com/apresai/gimage/archive/refs/tags/v1.1.0.tar.gz \
   --sha256=NEW_SHA256 \
-  chadneal/tap/gimage
+  apresai/tap/gimage
 
 # Or manually update Formula/gimage.rb and commit
 git add Formula/gimage.rb
@@ -245,7 +245,7 @@ gh repo fork homebrew/homebrew-core --clone
 
 # Create formula in core
 cd homebrew-core
-brew create https://github.com/chadneal/gimage/archive/refs/tags/v1.0.0.tar.gz
+brew create https://github.com/apresai/gimage/archive/refs/tags/v1.0.0.tar.gz
 
 # Test thoroughly
 brew audit --new --online --formula gimage
@@ -298,9 +298,9 @@ jobs:
           HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           brew bump-formula-pr \
-            --url=https://github.com/chadneal/gimage/archive/refs/tags/${{ github.event.client_payload.version }}.tar.gz \
+            --url=https://github.com/apresai/gimage/archive/refs/tags/${{ github.event.client_payload.version }}.tar.gz \
             --sha256=${{ github.event.client_payload.sha256 }} \
-            chadneal/tap/gimage
+            apresai/tap/gimage
 ```
 
 ### Test Suite in Tap
@@ -338,7 +338,7 @@ end
    ### Homebrew (macOS/Linux)
    ```bash
    # Tap is added automatically
-   brew install chadneal/tap/gimage
+   brew install apresai/tap/gimage
    ```
 
    ### Upgrade
@@ -366,7 +366,7 @@ gh release create v1.1.0 \
   --notes "Release notes here"
 
 # 3. Update Homebrew formula
-cd "$(brew --repository chadneal/gimage)"
+cd "$(brew --repository apresai/gimage)"
 brew bump-formula-pr --version=1.1.0 gimage
 ```
 
@@ -394,7 +394,7 @@ Before publishing tap:
 ### Issue: SHA256 Mismatch
 ```bash
 # Regenerate checksum
-curl -L https://github.com/chadneal/gimage/archive/refs/tags/v1.0.0.tar.gz | shasum -a 256
+curl -L https://github.com/apresai/gimage/archive/refs/tags/v1.0.0.tar.gz | shasum -a 256
 ```
 
 ### Issue: Build Failures

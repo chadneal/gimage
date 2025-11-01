@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/chadneal/gimage/internal/config"
-	"github.com/chadneal/gimage/internal/mcp"
-	"github.com/chadneal/gimage/internal/mcp/tools"
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/mcp/tools"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -84,7 +84,7 @@ If the MCP server isn't working in Claude:
   3. Look at Claude's logs for error messages
   4. Test image generation works: gimage generate "test image"
 
-For more information: https://github.com/chadneal/gimage`,
+For more information: https://github.com/apresai/gimage`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Load configuration (optional - tools will load it when needed)
 		cfg, err := config.LoadConfig()

@@ -243,7 +243,7 @@ import (
 	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/chadneal/gimage/internal/lambda"
+	"github.com/apresai/gimage/internal/lambda"
 )
 
 func main() {
@@ -266,8 +266,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/chadneal/gimage/internal/imaging"
-	"github.com/chadneal/gimage/internal/generate"
+	"github.com/apresai/gimage/internal/imaging"
+	"github.com/apresai/gimage/internal/generate"
 )
 
 type Handler struct {

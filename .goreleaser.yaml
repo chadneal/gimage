@@ -24,7 +24,7 @@ builds:
       # Inject version at build time
       # -s = strip debug info, -w = omit DWARF symbol table (smaller binaries)
       - -s -w
-      - -X github.com/chadneal/gimage/internal/cli.version={{.Version}}
+      - -X github.com/apresai/gimage/internal/cli.version={{.Version}}
 
     # Platforms to build for
     goos:
@@ -104,7 +104,7 @@ changelog:
 # GitHub release configuration
 release:
   github:
-    owner: chadneal
+    owner: apresai
     name: gimage
 
   # Release notes template
@@ -117,7 +117,7 @@ release:
 
     **macOS (Homebrew):**
     ```bash
-    brew install chadneal/tap/gimage
+    brew install apresai/tap/gimage
     ```
 
     **macOS/Linux (Direct Download):**
@@ -133,7 +133,7 @@ release:
 
     **MCP Server (npm - for Claude Desktop):**
     ```bash
-    npm install -g @chadneal/gimage-mcp
+    npm install -g @apresai/gimage-mcp
     ```
 
   footer: |
@@ -148,9 +148,9 @@ release:
     gimage generate "a sunset over mountains"
     ```
 
-    For detailed documentation, visit: https://github.com/chadneal/gimage
+    For detailed documentation, visit: https://github.com/apresai/gimage
 
-    **Full Changelog**: https://github.com/chadneal/gimage/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/apresai/gimage/compare/{{ .PreviousTag }}...{{ .Tag }}
 
   # Don't create release if this is a pre-release
   prerelease: auto
@@ -164,7 +164,7 @@ brews:
 
     # Repository for Homebrew formula
     repository:
-      owner: chadneal
+      owner: apresai
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
 
@@ -172,7 +172,7 @@ brews:
     commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Version }}"
 
     # Formula template
-    homepage: "https://github.com/chadneal/gimage"
+    homepage: "https://github.com/apresai/gimage"
     description: "AI-powered image generation and processing CLI"
     license: "MIT"
 
@@ -198,7 +198,7 @@ brews:
          gimage generate "a sunset over mountains"
 
       For full documentation:
-      https://github.com/chadneal/gimage
+      https://github.com/apresai/gimage
 
 # Announce the release (optional integrations)
 announce:

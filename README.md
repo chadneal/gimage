@@ -43,13 +43,13 @@ Production-ready serverless API for web applications and remote processing.
 
 ```bash
 # Install gimage (tap is added automatically)
-brew install chadneal/tap/gimage
+brew install apresai/tap/gimage
 ```
 
 #### Upgrade via Homebrew
 
 ```bash
-brew upgrade chadneal/tap/gimage
+brew upgrade apresai/tap/gimage
 ```
 
 #### Manual Installation
@@ -58,17 +58,17 @@ Download the latest release for your platform:
 
 ```bash
 # macOS (Intel)
-curl -L https://github.com/chadneal/gimage/releases/latest/download/gimage-darwin-amd64 -o gimage
+curl -L https://github.com/apresai/gimage/releases/latest/download/gimage-darwin-amd64 -o gimage
 chmod +x gimage
 sudo mv gimage /usr/local/bin/
 
 # macOS (Apple Silicon)
-curl -L https://github.com/chadneal/gimage/releases/latest/download/gimage-darwin-arm64 -o gimage
+curl -L https://github.com/apresai/gimage/releases/latest/download/gimage-darwin-arm64 -o gimage
 chmod +x gimage
 sudo mv gimage /usr/local/bin/
 
 # Linux
-curl -L https://github.com/chadneal/gimage/releases/latest/download/gimage-linux-amd64 -o gimage
+curl -L https://github.com/apresai/gimage/releases/latest/download/gimage-linux-amd64 -o gimage
 chmod +x gimage
 sudo mv gimage /usr/local/bin/
 ```
@@ -269,7 +269,7 @@ This is the cleanest approach - install gimage CLI via Homebrew, then use it as 
 **Step 1: Install gimage via Homebrew**
 ```bash
 # Install gimage (tap is added automatically)
-brew install chadneal/tap/gimage
+brew install apresai/tap/gimage
 
 # Verify installation
 gimage --version
@@ -294,7 +294,7 @@ Edit your configuration file:
 
 **Benefits**:
 - Uses the same gimage installation for both CLI and MCP
-- Easy updates with `brew upgrade chadneal/tap/gimage`
+- Easy updates with `brew upgrade apresai/tap/gimage`
 - No duplicate binaries
 
 #### Method 2: npm Package (Alternative - Works on all platforms)
@@ -303,7 +303,7 @@ If you prefer npm or don't use Homebrew:
 
 **Step 1: Install the npm package**
 ```bash
-npm install -g @chadneal/gimage-mcp
+npm install -g @apresai/gimage-mcp
 ```
 
 **Step 2: Configure Claude Desktop**
@@ -318,7 +318,7 @@ Edit your configuration file:
   "mcpServers": {
     "gimage": {
       "command": "npx",
-      "args": ["-y", "@chadneal/gimage-mcp"]
+      "args": ["-y", "@apresai/gimage-mcp"]
     }
   }
 }
@@ -567,7 +567,7 @@ Client Request → API Gateway → Lambda (Go/ARM64) → {S3, Gemini, Vertex AI}
 ### CLI Binary
 
 ```bash
-git clone https://github.com/chadneal/gimage.git
+git clone https://github.com/apresai/gimage.git
 cd gimage
 make build
 ./bin/gimage --version
@@ -611,8 +611,8 @@ make package-lambda
 - **Implementation Status**: [LAMBDA_STATUS.md](LAMBDA_STATUS.md)
 
 ### Community
-- **GitHub Issues**: https://github.com/chadneal/gimage/issues
-- **Discussions**: https://github.com/chadneal/gimage/discussions
+- **GitHub Issues**: https://github.com/apresai/gimage/issues
+- **Discussions**: https://github.com/apresai/gimage/discussions
 
 ## License
 

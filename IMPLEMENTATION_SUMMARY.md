@@ -468,7 +468,7 @@ The Gimage Lambda API is **100% complete and production-ready**:
 ## 📞 Support
 
 - **Documentation**: See DOCUMENTATION_INDEX.md
-- **GitHub Issues**: https://github.com/chadneal/gimage/issues
+- **GitHub Issues**: https://github.com/apresai/gimage/issues
 - **API Testing**: Visit `/docs` after deployment
 
 ---

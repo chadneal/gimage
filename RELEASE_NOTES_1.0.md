@@ -162,12 +162,12 @@ gimage auth vertex
 1. **Homebrew** (macOS/Linux - Recommended):
    ```bash
    # Tap is added automatically
-   brew install chadneal/tap/gimage
+   brew install apresai/tap/gimage
    ```
 
 2. **npm Package** (Cross-platform MCP server):
    ```bash
-   npm install -g @chadneal/gimage-mcp
+   npm install -g @apresai/gimage-mcp
    ```
 
 3. **Manual Download** (Direct binary):
@@ -242,7 +242,7 @@ Comprehensive documentation included:
 
 **Live Documentation**:
 - Interactive Swagger UI at `/docs` endpoint (Lambda deployments)
-- GitHub README: https://github.com/chadneal/gimage
+- GitHub README: https://github.com/apresai/gimage
 
 ---
 
@@ -283,7 +283,7 @@ Comprehensive documentation included:
 **1. Install via Homebrew**:
 ```bash
 # Tap is added automatically
-brew install chadneal/tap/gimage
+brew install apresai/tap/gimage
 ```
 
 **2. Configure Authentication**:
@@ -446,27 +446,27 @@ Built with these excellent open-source libraries:
 ## 📖 Resources
 
 ### Documentation
-- **GitHub Repository**: https://github.com/chadneal/gimage
-- **README**: https://github.com/chadneal/gimage#readme
-- **MCP Tools Reference**: https://github.com/chadneal/gimage/blob/main/docs/MCP_TOOLS.md
-- **Installation Guide**: https://github.com/chadneal/gimage#installation
-- **Authentication Setup**: https://github.com/chadneal/gimage#setup-authentication
+- **GitHub Repository**: https://github.com/apresai/gimage
+- **README**: https://github.com/apresai/gimage#readme
+- **MCP Tools Reference**: https://github.com/apresai/gimage/blob/main/docs/MCP_TOOLS.md
+- **Installation Guide**: https://github.com/apresai/gimage#installation
+- **Authentication Setup**: https://github.com/apresai/gimage#setup-authentication
 
 ### Distribution
-- **Homebrew Tap**: https://github.com/chadneal/homebrew-tap
-- **npm Package**: https://www.npmjs.com/package/@chadneal/gimage-mcp
-- **GitHub Releases**: https://github.com/chadneal/gimage/releases
+- **Homebrew Tap**: https://github.com/apresai/homebrew-tap
+- **npm Package**: https://www.npmjs.com/package/@apresai/gimage-mcp
+- **GitHub Releases**: https://github.com/apresai/gimage/releases
 
 ### Community
-- **Issues**: https://github.com/chadneal/gimage/issues
-- **Discussions**: https://github.com/chadneal/gimage/discussions
-- **Pull Requests**: https://github.com/chadneal/gimage/pulls
+- **Issues**: https://github.com/apresai/gimage/issues
+- **Discussions**: https://github.com/apresai/gimage/discussions
+- **Pull Requests**: https://github.com/apresai/gimage/pulls
 
 ---
 
 ## 📝 License
 
-MIT License - see [LICENSE](https://github.com/chadneal/gimage/blob/main/LICENSE) file for details.
+MIT License - see [LICENSE](https://github.com/apresai/gimage/blob/main/LICENSE) file for details.
 
 ---
 
@@ -485,7 +485,7 @@ Gimage v1.0 provides a comprehensive, production-ready solution for AI-powered i
 **Get Started Today**:
 ```bash
 # Install
-# Tap is added automatically && brew install chadneal/tap/gimage
+# Tap is added automatically && brew install apresai/tap/gimage
 
 # Authenticate
 gimage auth gemini
@@ -501,4 +501,4 @@ gimage generate "your creative prompt here"
 **Version**: 1.0
 **Release Date**: November 1, 2025
 **Maintainer**: Chad Neal
-**Repository**: https://github.com/chadneal/gimage
+**Repository**: https://github.com/apresai/gimage

@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/disintegration/imaging"
-	"github.com/chadneal/gimage/internal/config"
-	"github.com/chadneal/gimage/internal/mcp"
-	"github.com/chadneal/gimage/internal/mcp/tools"
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/mcp/tools"
 )
 
 // TestMCPToolsE2E tests all 10 MCP tools end-to-end

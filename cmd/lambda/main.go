@@ -5,7 +5,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/chadneal/gimage/internal/lambdahandler"
+	"github.com/apresai/gimage/internal/lambdahandler"
 )
 
 func main() {

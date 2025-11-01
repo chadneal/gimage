@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/chadneal/gimage/internal/cli"
+	"github.com/apresai/gimage/internal/cli"
 )
 
 func main() {

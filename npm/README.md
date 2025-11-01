@@ -1,4 +1,4 @@
-# @chadneal/gimage-mcp
+# @apresai/gimage-mcp
 
 MCP (Model Context Protocol) server for AI-powered image generation and processing with gimage.
 
@@ -7,13 +7,13 @@ MCP (Model Context Protocol) server for AI-powered image generation and processi
 ### Installation
 
 ```bash
-npm install -g @chadneal/gimage-mcp
+npm install -g @apresai/gimage-mcp
 ```
 
 Or use without installation:
 
 ```bash
-npx @chadneal/gimage-mcp
+npx @apresai/gimage-mcp
 ```
 
 ### Configure Claude Desktop
@@ -29,7 +29,7 @@ Add to your Claude Desktop MCP configuration file:
   "mcpServers": {
     "gimage": {
       "command": "npx",
-      "args": ["-y", "@chadneal/gimage-mcp"]
+      "args": ["-y", "@apresai/gimage-mcp"]
     }
   }
 }
@@ -149,7 +149,7 @@ The server respects these environment variables:
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew install chadneal/tap/gimage
+brew install apresai/tap/gimage
 ```
 
 Then configure Claude Desktop with:
@@ -167,14 +167,14 @@ Then configure Claude Desktop with:
 
 ### Manual Binary Download
 
-Download from: https://github.com/chadneal/gimage/releases
+Download from: https://github.com/apresai/gimage/releases
 
 ## Documentation
 
-- [Complete MCP Tools Reference](https://github.com/chadneal/gimage/blob/main/docs/MCP_TOOLS.md)
-- [Usage Guide](https://github.com/chadneal/gimage/blob/main/docs/MCP_USAGE.md)
-- [Examples](https://github.com/chadneal/gimage/blob/main/docs/MCP_EXAMPLES.md)
-- [Main Documentation](https://github.com/chadneal/gimage)
+- [Complete MCP Tools Reference](https://github.com/apresai/gimage/blob/main/docs/MCP_TOOLS.md)
+- [Usage Guide](https://github.com/apresai/gimage/blob/main/docs/MCP_USAGE.md)
+- [Examples](https://github.com/apresai/gimage/blob/main/docs/MCP_EXAMPLES.md)
+- [Main Documentation](https://github.com/apresai/gimage)
 
 ## License
 
@@ -182,5 +182,5 @@ MIT
 
 ## Support
 
-- GitHub Issues: https://github.com/chadneal/gimage/issues
-- Documentation: https://github.com/chadneal/gimage#readme
+- GitHub Issues: https://github.com/apresai/gimage/issues
+- Documentation: https://github.com/apresai/gimage#readme

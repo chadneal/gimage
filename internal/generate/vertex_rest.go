@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/chadneal/gimage/pkg/models"
+	"github.com/apresai/gimage/pkg/models"
 	"github.com/sony/gobreaker"
 	"github.com/spf13/viper"
 )

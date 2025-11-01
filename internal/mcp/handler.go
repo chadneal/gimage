@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chadneal/gimage/internal/observability"
+	"github.com/apresai/gimage/internal/observability"
 )
 
 // HandleRequest processes an MCP JSON-RPC request and returns a response

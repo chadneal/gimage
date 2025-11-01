@@ -436,9 +436,9 @@ var (
 
 **Build command**:
 ```bash
-go build -ldflags "-X github.com/chadneal/gimage/internal/cli.Version=${VERSION} \
-                   -X github.com/chadneal/gimage/internal/cli.BuildNumber=${BUILD} \
-                   -X github.com/chadneal/gimage/internal/cli.GitCommit=${GIT_COMMIT}"
+go build -ldflags "-X github.com/apresai/gimage/internal/cli.Version=${VERSION} \
+                   -X github.com/apresai/gimage/internal/cli.BuildNumber=${BUILD} \
+                   -X github.com/apresai/gimage/internal/cli.GitCommit=${GIT_COMMIT}"
 ```
 
 ##### 2. **Makefile Targets**
@@ -519,7 +519,7 @@ echo "Release ${NEW_VERSION} complete!"
 **Update tap formula** with new version and SHA256:
 ```bash
 #!/bin/bash
-# Publish to Homebrew tap: chadneal/homebrew-tap
+# Publish to Homebrew tap: apresai/homebrew-tap
 
 VERSION=$(cat VERSION | jq -r '.version')
 DARWIN_AMD64_SHA=$(shasum -a 256 bin/gimage-darwin-amd64 | cut -d' ' -f1)
@@ -527,26 +527,26 @@ DARWIN_ARM64_SHA=$(shasum -a 256 bin/gimage-darwin-arm64 | cut -d' ' -f1)
 LINUX_AMD64_SHA=$(shasum -a 256 bin/gimage-linux-amd64 | cut -d' ' -f1)
 
 # Clone tap repo
-git clone https://github.com/chadneal/homebrew-tap.git /tmp/homebrew-tap
+git clone https://github.com/apresai/homebrew-tap.git /tmp/homebrew-tap
 cd /tmp/homebrew-tap
 
 # Update Formula/gimage.rb
 cat > Formula/gimage.rb <<EOF
 class Gimage < Formula
   desc "AI-powered image generation and processing"
-  homepage "https://github.com/chadneal/gimage"
+  homepage "https://github.com/apresai/gimage"
   version "${VERSION}"
 
   if OS.mac?
     if Hardware::CPU.intel?
-      url "https://github.com/chadneal/gimage/releases/download/v${VERSION}/gimage-darwin-amd64"
+      url "https://github.com/apresai/gimage/releases/download/v${VERSION}/gimage-darwin-amd64"
       sha256 "${DARWIN_AMD64_SHA}"
     else
-      url "https://github.com/chadneal/gimage/releases/download/v${VERSION}/gimage-darwin-arm64"
+      url "https://github.com/apresai/gimage/releases/download/v${VERSION}/gimage-darwin-arm64"
       sha256 "${DARWIN_ARM64_SHA}"
     end
   elsif OS.linux?
-    url "https://github.com/chadneal/gimage/releases/download/v${VERSION}/gimage-linux-amd64"
+    url "https://github.com/apresai/gimage/releases/download/v${VERSION}/gimage-linux-amd64"
     sha256 "${LINUX_AMD64_SHA}"
   end
 
@@ -575,7 +575,7 @@ echo "Homebrew tap updated to v${VERSION}"
 **Update package.json** and publish:
 ```bash
 #!/bin/bash
-# Publish to npm: @chadneal/gimage-mcp
+# Publish to npm: @apresai/gimage-mcp
 
 VERSION=$(cat VERSION | jq -r '.version')
 cd npm-package
@@ -589,7 +589,7 @@ sed -i '' "s/releases\/download\/v[0-9.]*\//releases\/download\/v${VERSION}\//" 
 # Publish to npm
 npm publish --access public
 
-echo "npm package @chadneal/gimage-mcp@${VERSION} published"
+echo "npm package @apresai/gimage-mcp@${VERSION} published"
 ```
 
 ##### 6. **GitHub Actions CI/CD** (`.github/workflows/release.yml`)
@@ -691,11 +691,11 @@ Format:
 brew upgrade gimage
 
 # npm
-npm update -g @chadneal/gimage-mcp
+npm update -g @apresai/gimage-mcp
 \`\`\`
 
 ## Full Changelog
-https://github.com/chadneal/gimage/compare/v${CURRENT_VERSION}...v${NEW_VERSION}
+https://github.com/apresai/gimage/compare/v${CURRENT_VERSION}...v${NEW_VERSION}
 "
 ```
 

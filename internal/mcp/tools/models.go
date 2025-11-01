@@ -1,7 +1,7 @@
 package tools
 
 import (
-	"github.com/chadneal/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/mcp"
 )
 
 // RegisterListModelsTool registers the list_models tool

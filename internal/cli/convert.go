@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/chadneal/gimage/internal/imaging"
+	"github.com/apresai/gimage/internal/imaging"
 	"github.com/spf13/cobra"
 )
 

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/chadneal/gimage/internal/config"
-	"github.com/chadneal/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/mcp"
 )
 
 func TestResizeImageTool(t *testing.T) {

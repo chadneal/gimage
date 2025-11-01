@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chadneal/gimage/internal/config"
-	"github.com/chadneal/gimage/internal/mcp"
-	"github.com/chadneal/gimage/internal/mcp/tools"
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/mcp/tools"
 )
 
 // TestMCPServerIntegration tests the full MCP server flow from request to response

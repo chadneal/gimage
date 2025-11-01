@@ -352,8 +352,8 @@ gimage/
 
 ## 📞 Support
 
-- **GitHub Issues**: https://github.com/chadneal/gimage/issues
-- **Discussions**: https://github.com/chadneal/gimage/discussions
+- **GitHub Issues**: https://github.com/apresai/gimage/issues
+- **Discussions**: https://github.com/apresai/gimage/discussions
 - **OpenAPI Spec Issues**: Tag with `api` label
 
 ---

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chadneal/gimage/internal/config"
-	"github.com/chadneal/gimage/internal/generate"
-	"github.com/chadneal/gimage/pkg/models"
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/generate"
+	"github.com/apresai/gimage/pkg/models"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

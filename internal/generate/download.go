@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/chadneal/gimage/internal/imaging"
-	"github.com/chadneal/gimage/pkg/models"
+	"github.com/apresai/gimage/internal/imaging"
+	"github.com/apresai/gimage/pkg/models"
 )
 
 const (

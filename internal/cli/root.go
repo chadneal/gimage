@@ -146,7 +146,7 @@ TIPS:
   • All image processing uses high-quality Lanczos resampling
   • Config file location: ~/.gimage/config.md
 
-For more information, visit: https://github.com/chadneal/gimage`,
+For more information, visit: https://github.com/apresai/gimage`,
 	Version: version,
 }
 

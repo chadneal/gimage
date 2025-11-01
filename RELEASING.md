@@ -43,7 +43,7 @@ This token allows GitHub Actions to publish your MCP server to npm.
 
 Now add both tokens to your GitHub repository:
 
-1. Go to: https://github.com/chadneal/gimage/settings/secrets/actions
+1. Go to: https://github.com/apresai/gimage/settings/secrets/actions
 2. Click **"New repository secret"**
 3. Add first secret:
    - Name: `HOMEBREW_TAP_TOKEN`
@@ -61,7 +61,7 @@ Check that everything is configured:
 
 ```bash
 # 1. Verify homebrew-tap repository exists
-gh repo view chadneal/homebrew-tap
+gh repo view apresai/homebrew-tap
 
 # 2. Verify you're logged into npm
 npm whoami
@@ -88,7 +88,7 @@ Before creating a release, ensure you have:
 - [ ] GitHub CLI installed (optional): `brew install gh`
 
 ### Required Access
-- [ ] Write access to the `chadneal/gimage` repository
+- [ ] Write access to the `apresai/gimage` repository
 - [ ] GitHub Personal Access Token with `repo` scope (for Homebrew tap)
   - Go to: https://github.com/settings/tokens/new
   - Select scopes: `repo` (full control of private repositories)
@@ -98,7 +98,7 @@ Before creating a release, ensure you have:
   - Save as `NPM_TOKEN` repository secret
 
 ### Repository Setup
-- [x] Homebrew tap repository already exists: https://github.com/chadneal/homebrew-tap
+- [x] Homebrew tap repository already exists: https://github.com/apresai/homebrew-tap
   - GoReleaser will automatically push formula updates here
 - [ ] All tests passing: `make test`
 - [ ] Code linted: `make lint` (or install golangci-lint)
@@ -192,8 +192,8 @@ vim CHANGELOG.md  # or use your preferred editor
 
 **Important**: Add the comparison link at the bottom:
 ```markdown
-[Unreleased]: https://github.com/chadneal/gimage/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/chadneal/gimage/compare/v0.1.1...v0.2.0
+[Unreleased]: https://github.com/apresai/gimage/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/apresai/gimage/compare/v0.1.1...v0.2.0
 ```
 
 #### 1.3 Update Version in Makefile (if needed)
@@ -266,7 +266,7 @@ git push origin v0.2.0
 
 #### 3.1 Watch GitHub Actions
 
-Go to: https://github.com/chadneal/gimage/actions
+Go to: https://github.com/apresai/gimage/actions
 
 You should see:
 1. **CI workflow** (green check): Tests passed
@@ -289,7 +289,7 @@ If the workflow fails:
 
 #### 4.1 Check GitHub Release Page
 
-Go to: https://github.com/chadneal/gimage/releases
+Go to: https://github.com/apresai/gimage/releases
 
 Verify:
 - [ ] Release is published (not draft)
@@ -310,9 +310,9 @@ Verify:
 brew update
 
 # Install/upgrade
-brew install chadneal/tap/gimage
+brew install apresai/tap/gimage
 # or
-brew upgrade chadneal/tap/gimage
+brew upgrade apresai/tap/gimage
 
 # Verify version
 gimage --version
@@ -322,7 +322,7 @@ gimage --version
 **Test Direct Download (Linux):**
 ```bash
 # Download
-curl -L https://github.com/chadneal/gimage/releases/download/v0.2.0/gimage_0.2.0_Linux_x86_64.tar.gz -o gimage.tar.gz
+curl -L https://github.com/apresai/gimage/releases/download/v0.2.0/gimage_0.2.0_Linux_x86_64.tar.gz -o gimage.tar.gz
 
 # Extract
 tar -xzf gimage.tar.gz
@@ -334,10 +334,10 @@ tar -xzf gimage.tar.gz
 **Test npm (MCP server):**
 ```bash
 # Install globally
-npm install -g @chadneal/gimage-mcp
+npm install -g @apresai/gimage-mcp
 
 # Or update
-npm update -g @chadneal/gimage-mcp
+npm update -g @apresai/gimage-mcp
 
 # Verify
 gimage-mcp --version
@@ -369,16 +369,16 @@ When you push a git tag, the automated release process distributes gimage throug
 - Platforms: macOS (Intel/ARM), Linux (x64/ARM64), Windows (x64)
 
 ### 2. Homebrew Tap (macOS/Linux Package Manager)
-- **Homebrew formula** is automatically updated in `chadneal/homebrew-tap`
-- Users install with: `brew install chadneal/tap/gimage`
+- **Homebrew formula** is automatically updated in `apresai/homebrew-tap`
+- Users install with: `brew install apresai/tap/gimage`
 - Formula includes:
   - Binary URL pointing to GitHub release
   - SHA256 checksum for verification
   - Installation and test commands
 
 ### 3. npm Registry (MCP Server Distribution)
-- **npm package** `@chadneal/gimage-mcp` is published
-- Users install with: `npm install -g @chadneal/gimage-mcp`
+- **npm package** `@apresai/gimage-mcp` is published
+- Users install with: `npm install -g @apresai/gimage-mcp`
 - Package includes:
   - Postinstall script that downloads correct binary
   - Platform detection (macOS/Linux/Windows, x64/ARM64)
@@ -399,9 +399,9 @@ After pushing a tag (e.g., `git push origin v0.2.0`):
 | +5min | **Users can install!** |
 
 Users can verify the release:
-- **GitHub**: https://github.com/chadneal/gimage/releases
-- **Homebrew**: `brew info chadneal/tap/gimage`
-- **npm**: `npm view @chadneal/gimage-mcp`
+- **GitHub**: https://github.com/apresai/gimage/releases
+- **Homebrew**: `brew info apresai/tap/gimage`
+- **npm**: `npm view @apresai/gimage-mcp`
 
 ---
 
@@ -466,7 +466,7 @@ Check:
 Manual formula update:
 ```bash
 # Clone the tap
-git clone https://github.com/chadneal/homebrew-tap
+git clone https://github.com/apresai/homebrew-tap
 cd homebrew-tap
 
 # Edit gimage.rb manually
@@ -547,7 +547,7 @@ Use this checklist for every release:
 - [ ] Create npm Automation Token
 - [ ] Add `HOMEBREW_TAP_TOKEN` to GitHub Secrets
 - [ ] Add `NPM_TOKEN` to GitHub Secrets
-- [ ] Verify `chadneal/homebrew-tap` repository exists
+- [ ] Verify `apresai/homebrew-tap` repository exists
 - [ ] Run `goreleaser release --snapshot --clean` to test locally
 
 ### For Every Release
@@ -567,15 +567,15 @@ Use this checklist for every release:
 - [ ] **Done!** GitHub Actions handles the rest
 
 **3. Monitor** (5 minutes)
-- [ ] Watch GitHub Actions: https://github.com/chadneal/gimage/actions
+- [ ] Watch GitHub Actions: https://github.com/apresai/gimage/actions
 - [ ] Verify tests pass
 - [ ] Verify release job completes
 - [ ] Verify npm-publish job completes
 
 **4. Verify Release** (10 minutes)
-- [ ] Check GitHub release: https://github.com/chadneal/gimage/releases
-- [ ] Test Homebrew: `brew install chadneal/tap/gimage`
-- [ ] Test npm: `npm view @chadneal/gimage-mcp`
+- [ ] Check GitHub release: https://github.com/apresai/gimage/releases
+- [ ] Test Homebrew: `brew install apresai/tap/gimage`
+- [ ] Test npm: `npm view @apresai/gimage-mcp`
 - [ ] Run smoke tests: `gimage --version`, `gimage --help`
 
 **5. Post-Release** (Optional)
@@ -589,8 +589,8 @@ After a successful release, users can install gimage through:
 
 | Method | Command | Users |
 |--------|---------|-------|
-| **Homebrew** | `brew install chadneal/tap/gimage` | macOS/Linux developers |
-| **npm** | `npm install -g @chadneal/gimage-mcp` | Claude Desktop MCP users |
+| **Homebrew** | `brew install apresai/tap/gimage` | macOS/Linux developers |
+| **npm** | `npm install -g @apresai/gimage-mcp` | Claude Desktop MCP users |
 | **Direct** | Download from GitHub releases | All platforms |
 
 ### Version Numbering Guide

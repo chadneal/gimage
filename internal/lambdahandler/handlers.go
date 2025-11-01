@@ -16,10 +16,10 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/chadneal/gimage/internal/config"
-	"github.com/chadneal/gimage/internal/generate"
-	gimageimaging "github.com/chadneal/gimage/internal/imaging"
-	"github.com/chadneal/gimage/pkg/models"
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/generate"
+	gimageimaging "github.com/apresai/gimage/internal/imaging"
+	"github.com/apresai/gimage/pkg/models"
 	"github.com/disintegration/imaging"
 )
 

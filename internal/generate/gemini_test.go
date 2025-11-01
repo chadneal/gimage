@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/chadneal/gimage/pkg/models"
+	"github.com/apresai/gimage/pkg/models"
 )
 
 func TestNewGeminiClient(t *testing.T) {

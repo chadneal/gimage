@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const tar = require('tar');
 
-const GITHUB_REPO = 'chadneal/gimage';
+const GITHUB_REPO = 'apresai/gimage';
 const VERSION = process.env.npm_package_version || '0.1.0';
 
 function getPlatformInfo() {
@@ -154,13 +154,13 @@ async function main() {
     console.log('  "mcpServers": {');
     console.log('    "gimage": {');
     console.log('      "command": "npx",');
-    console.log('      "args": ["-y", "@chadneal/gimage-mcp"]');
+    console.log('      "args": ["-y", "@apresai/gimage-mcp"]');
     console.log('    }');
     console.log('  }');
     console.log('}');
     console.log('\nBefore using, configure your API keys:');
     console.log('  gimage auth gemini');
-    console.log('\nFor more information: https://github.com/chadneal/gimage');
+    console.log('\nFor more information: https://github.com/apresai/gimage');
   } catch (error) {
     console.error('Installation failed:', error.message);
     console.error('\nFallback options:');

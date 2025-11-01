@@ -618,7 +618,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/chadneal/gimage/internal/config"
+	"github.com/apresai/gimage/internal/config"
 )
 
 // MCPServer implements the Model Context Protocol server
@@ -873,9 +873,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/chadneal/gimage/internal/generate"
-	"github.com/chadneal/gimage/internal/mcp"
-	"github.com/chadneal/gimage/pkg/models"
+	"github.com/apresai/gimage/internal/generate"
+	"github.com/apresai/gimage/internal/mcp"
+	"github.com/apresai/gimage/pkg/models"
 )
 
 // RegisterGenerateImageTool registers the generate_image tool
@@ -1017,8 +1017,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/chadneal/gimage/internal/imaging"
-	"github.com/chadneal/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/imaging"
+	"github.com/apresai/gimage/internal/mcp"
 )
 
 // RegisterResizeImageTool registers the resize_image tool
@@ -1126,9 +1126,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/chadneal/gimage/internal/config"
-	"github.com/chadneal/gimage/internal/mcp"
-	"github.com/chadneal/gimage/internal/mcp/tools"
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/mcp/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -1200,7 +1200,7 @@ If the MCP server isn't working in Claude:
   3. Look at Claude's logs for error messages
   4. Test image generation works: gimage generate "test image"
 
-For more information: https://github.com/chadneal/gimage`,
+For more information: https://github.com/apresai/gimage`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Load configuration
 		cfg, err := config.Load()
@@ -1278,7 +1278,7 @@ gimage-mcp/
 
 ```json
 {
-  "name": "@chadneal/gimage-mcp",
+  "name": "@apresai/gimage-mcp",
   "version": "0.1.0",
   "description": "MCP server for AI-powered image generation and processing with gimage",
   "keywords": [
@@ -1291,15 +1291,15 @@ gimage-mcp/
     "gemini",
     "vertex-ai"
   ],
-  "author": "Chad Neal <chad@chadneal.com>",
+  "author": "Chad Neal <chad@apresai.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/chadneal/gimage.git"
+    "url": "https://github.com/apresai/gimage.git"
   },
-  "homepage": "https://github.com/chadneal/gimage#readme",
+  "homepage": "https://github.com/apresai/gimage#readme",
   "bugs": {
-    "url": "https://github.com/chadneal/gimage/issues"
+    "url": "https://github.com/apresai/gimage/issues"
   },
   "bin": {
     "gimage-mcp": "./bin/gimage-mcp.js"
@@ -1346,7 +1346,7 @@ const path = require('path');
 const tar = require('tar');
 const { execSync } = require('child_process');
 
-const GITHUB_REPO = 'chadneal/gimage';
+const GITHUB_REPO = 'apresai/gimage';
 const VERSION = process.env.npm_package_version || '0.1.0';
 
 function getPlatformInfo() {
@@ -1462,7 +1462,7 @@ async function main() {
     console.log('  "mcpServers": {');
     console.log('    "gimage": {');
     console.log('      "command": "npx",');
-    console.log('      "args": ["-y", "@chadneal/gimage-mcp"]');
+    console.log('      "args": ["-y", "@apresai/gimage-mcp"]');
     console.log('    }');
     console.log('  }');
     console.log('}');
@@ -1515,7 +1515,7 @@ function main() {
   child.on('error', (error) => {
     console.error('Failed to start gimage MCP server:', error.message);
     console.error('\nPlease ensure gimage is installed:');
-    console.error('  npm install -g @chadneal/gimage-mcp');
+    console.error('  npm install -g @apresai/gimage-mcp');
     console.error('  or');
     console.error('  brew install gimage');
     process.exit(1);
@@ -1599,10 +1599,10 @@ gimage/
 
 ```bash
 # Install globally
-npm install -g @chadneal/gimage-mcp
+npm install -g @apresai/gimage-mcp
 
 # Or use with npx (no installation required)
-npx @chadneal/gimage-mcp
+npx @apresai/gimage-mcp
 ```
 
 **Claude Desktop Configuration**:
@@ -1611,7 +1611,7 @@ npx @chadneal/gimage-mcp
   "mcpServers": {
     "gimage": {
       "command": "npx",
-      "args": ["-y", "@chadneal/gimage-mcp"]
+      "args": ["-y", "@apresai/gimage-mcp"]
     }
   }
 }
@@ -1621,10 +1621,10 @@ npx @chadneal/gimage-mcp
 
 ```bash
 # Install gimage CLI
-brew install chadneal/tap/gimage
+brew install apresai/tap/gimage
 
 # Or download from GitHub releases
-curl -L https://github.com/chadneal/gimage/releases/latest/download/gimage-darwin-arm64 -o gimage
+curl -L https://github.com/apresai/gimage/releases/latest/download/gimage-darwin-arm64 -o gimage
 chmod +x gimage
 sudo mv gimage /usr/local/bin/
 ```
@@ -1645,7 +1645,7 @@ sudo mv gimage /usr/local/bin/
 
 ```bash
 # Clone repository
-git clone https://github.com/chadneal/gimage.git
+git clone https://github.com/apresai/gimage.git
 cd gimage
 
 # Build binary
@@ -1721,7 +1721,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/chadneal/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/mcp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -1784,9 +1784,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chadneal/gimage/internal/config"
-	"github.com/chadneal/gimage/internal/mcp"
-	"github.com/chadneal/gimage/internal/mcp/tools"
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/mcp/tools"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -1884,7 +1884,7 @@ echo "✓ MCP server test passed"
 ### 1. Install gimage MCP server
 
 ```bash
-npm install -g @chadneal/gimage-mcp
+npm install -g @apresai/gimage-mcp
 ```
 
 ### 2. Configure API credentials
@@ -1908,7 +1908,7 @@ Edit your Claude Desktop configuration:
   "mcpServers": {
     "gimage": {
       "command": "npx",
-      "args": ["-y", "@chadneal/gimage-mcp"]
+      "args": ["-y", "@apresai/gimage-mcp"]
     }
   }
 }
@@ -2391,7 +2391,7 @@ jobs:
 
             ### npm (Recommended for Claude Desktop)
             ```bash
-            npm install -g @chadneal/gimage-mcp
+            npm install -g @apresai/gimage-mcp
             ```
 
             ### Direct Binary
@@ -2450,25 +2450,25 @@ After release, update Homebrew formula:
 # homebrew-tap/Formula/gimage.rb
 class Gimage < Formula
   desc "AI-powered image generation and processing CLI with MCP server"
-  homepage "https://github.com/chadneal/gimage"
+  homepage "https://github.com/apresai/gimage"
   version "0.1.0"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/chadneal/gimage/releases/download/v0.1.0/gimage-darwin-amd64.tar.gz"
+      url "https://github.com/apresai/gimage/releases/download/v0.1.0/gimage-darwin-amd64.tar.gz"
       sha256 "..." # Calculate with: shasum -a 256 gimage-darwin-amd64.tar.gz
     else
-      url "https://github.com/chadneal/gimage/releases/download/v0.1.0/gimage-darwin-arm64.tar.gz"
+      url "https://github.com/apresai/gimage/releases/download/v0.1.0/gimage-darwin-arm64.tar.gz"
       sha256 "..." # Calculate with: shasum -a 256 gimage-darwin-arm64.tar.gz
     end
   end
 
   on_linux do
     if Hardware::CPU.intel?
-      url "https://github.com/chadneal/gimage/releases/download/v0.1.0/gimage-linux-amd64.tar.gz"
+      url "https://github.com/apresai/gimage/releases/download/v0.1.0/gimage-linux-amd64.tar.gz"
       sha256 "..."
     else
-      url "https://github.com/chadneal/gimage/releases/download/v0.1.0/gimage-linux-arm64.tar.gz"
+      url "https://github.com/apresai/gimage/releases/download/v0.1.0/gimage-linux-arm64.tar.gz"
       sha256 "..."
     end
   end
@@ -2563,8 +2563,8 @@ end
 - **LLM_GUIDE.md** - Guidelines for LLMs using gimage
 
 ### Community
-- **GitHub Issues**: https://github.com/chadneal/gimage/issues
-- **Discussions**: https://github.com/chadneal/gimage/discussions
+- **GitHub Issues**: https://github.com/apresai/gimage/issues
+- **Discussions**: https://github.com/apresai/gimage/discussions
 - **Discord** (optional): TBD
 
 ### References

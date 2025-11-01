@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Post-install script for @chadneal/gimage-mcp
+ * Post-install script for @apresai/gimage-mcp
  *
  * This script downloads the appropriate gimage binary for the user's platform
  * from the GitHub releases page.
@@ -14,7 +14,7 @@ const { execSync } = require('child_process');
 const packageJson = require('../package.json');
 
 // Configuration
-const GITHUB_REPO = 'chadneal/gimage';
+const GITHUB_REPO = 'apresai/gimage';
 const VERSION = packageJson.version;
 const BIN_DIR = path.join(__dirname, '..', 'bin');
 

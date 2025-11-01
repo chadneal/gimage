@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/chadneal/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/mcp"
 	"github.com/disintegration/imaging"
 )
 

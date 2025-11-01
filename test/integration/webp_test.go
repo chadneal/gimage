@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/HugoSmits86/nativewebp"
-	"github.com/chadneal/gimage/internal/imaging"
+	"github.com/apresai/gimage/internal/imaging"
 )
 
 // TestWebPEncoding tests WebP encoding functionality

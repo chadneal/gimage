@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/chadneal/gimage/internal/config"
+	"github.com/apresai/gimage/internal/config"
 	"github.com/spf13/cobra"
 )
 

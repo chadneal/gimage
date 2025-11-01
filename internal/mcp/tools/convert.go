@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chadneal/gimage/internal/mcp"
+	"github.com/apresai/gimage/internal/mcp"
 )
 
 // RegisterConvertImageTool registers the convert_image tool

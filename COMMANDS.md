@@ -886,8 +886,8 @@ gimage generate "test" --verbose
 
 ## More Information
 
-- **GitHub**: https://github.com/chadneal/gimage
-- **Issues**: https://github.com/chadneal/gimage/issues
-- **Discussions**: https://github.com/chadneal/gimage/discussions
+- **GitHub**: https://github.com/apresai/gimage
+- **Issues**: https://github.com/apresai/gimage/issues
+- **Discussions**: https://github.com/apresai/gimage/discussions
 - **Main Documentation**: See [README.md](README.md)
 - **Developer Guide**: See [CLAUDE.md](CLAUDE.md)

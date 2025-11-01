@@ -173,8 +173,8 @@ gimage auth gemini
 
 **Usage in Code**:
 ```go
-import "github.com/chadneal/gimage/internal/generate"
-import "github.com/chadneal/gimage/internal/config"
+import "github.com/apresai/gimage/internal/generate"
+import "github.com/apresai/gimage/internal/config"
 
 // Get API key from config or env
 key, err := config.GetGeminiAPIKey("")

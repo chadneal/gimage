@@ -602,8 +602,8 @@ aws ce get-cost-and-usage \
 - [AWS Support](https://aws.amazon.com/support/)
 
 ### Community
-- **GitHub Issues**: https://github.com/chadneal/gimage/issues
-- **Discussions**: https://github.com/chadneal/gimage/discussions
+- **GitHub Issues**: https://github.com/apresai/gimage/issues
+- **Discussions**: https://github.com/apresai/gimage/discussions
 
 ---
 

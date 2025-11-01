@@ -19,7 +19,7 @@ GOMOD=$(GOCMD) mod
 GOLINT=golangci-lint
 
 # Build parameters
-LDFLAGS=-ldflags "-X github.com/chadneal/gimage/internal/cli.version=$(VERSION)"
+LDFLAGS=-ldflags "-X github.com/apresai/gimage/internal/cli.version=$(VERSION)"
 
 # Installation directory
 INSTALL_DIR=/usr/local/bin
@@ -278,10 +278,10 @@ release:
 	@echo "  ✓ Release v$(VERSION) Complete!"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
-	@echo "GitHub Release: https://github.com/chadneal/gimage/releases/tag/v$(VERSION)"
-	@echo "npm Package: https://www.npmjs.com/package/@chadneal/gimage-mcp/v/$(VERSION)"
+	@echo "GitHub Release: https://github.com/apresai/gimage/releases/tag/v$(VERSION)"
+	@echo "npm Package: https://www.npmjs.com/package/@apresai/gimage-mcp/v/$(VERSION)"
 	@echo ""
 	@echo "Installation:"
-	@echo "  Homebrew: brew install chadneal/tap/gimage"
-	@echo "  npm:      npm install -g @chadneal/gimage-mcp"
+	@echo "  Homebrew: brew install apresai/tap/gimage"
+	@echo "  npm:      npm install -g @apresai/gimage-mcp"
 	@echo ""

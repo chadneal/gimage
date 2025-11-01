@@ -1353,7 +1353,7 @@ func GenerateSocialMediaImage(client *gimage.Client, text string) (string, error
 ## Support
 
 - **API Reference**: `openapi.yaml`
-- **GitHub Issues**: https://github.com/chadneal/gimage/issues
+- **GitHub Issues**: https://github.com/apresai/gimage/issues
 - **Documentation**: `lambda.md`, `LAMBDA_STATUS.md`
 
 ---

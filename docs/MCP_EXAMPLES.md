@@ -1119,5 +1119,5 @@ Your handmade candle business now has professional-looking product photography w
 
 ## Support
 
-- **GitHub Issues**: https://github.com/chadneal/gimage/issues
-- **Documentation**: https://github.com/chadneal/gimage
+- **GitHub Issues**: https://github.com/apresai/gimage/issues
+- **Documentation**: https://github.com/apresai/gimage

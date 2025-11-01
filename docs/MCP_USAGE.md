@@ -8,17 +8,17 @@ Complete guide to using the gimage MCP server with Claude and other AI assistant
 
 **Option A: npm (Recommended)**
 ```bash
-npm install -g @chadneal/gimage-mcp
+npm install -g @apresai/gimage-mcp
 ```
 
 **Option B: Homebrew**
 ```bash
-brew install chadneal/tap/gimage
+brew install apresai/tap/gimage
 ```
 
 **Option C: Manual Download**
 
-Download from [GitHub Releases](https://github.com/chadneal/gimage/releases)
+Download from [GitHub Releases](https://github.com/apresai/gimage/releases)
 
 ### 2. Configure API credentials
 
@@ -57,7 +57,7 @@ Edit your Claude Desktop MCP configuration file:
   "mcpServers": {
     "gimage": {
       "command": "npx",
-      "args": ["-y", "@chadneal/gimage-mcp"]
+      "args": ["-y", "@apresai/gimage-mcp"]
     }
   }
 }
@@ -450,5 +450,5 @@ Claude can chain multiple operations:
 
 - **Documentation**: [Complete Tools Reference](MCP_TOOLS.md)
 - **Examples**: [Real-World Examples](MCP_EXAMPLES.md)
-- **GitHub**: https://github.com/chadneal/gimage
-- **Issues**: https://github.com/chadneal/gimage/issues
+- **GitHub**: https://github.com/apresai/gimage
+- **Issues**: https://github.com/apresai/gimage/issues

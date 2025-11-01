@@ -66,8 +66,8 @@ Image saving and file management utilities:
 ```go
 import (
     "context"
-    "github.com/chadneal/gimage/internal/generate"
-    "github.com/chadneal/gimage/pkg/models"
+    "github.com/apresai/gimage/internal/generate"
+    "github.com/apresai/gimage/pkg/models"
 )
 
 // Create client
