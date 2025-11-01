@@ -36,9 +36,13 @@ func RegisterCompressImageTool(server *mcp.MCPServer) {
 		},
 		Handler: func(args map[string]interface{}) (map[string]interface{}, error) {
 			// Validate input
-			input, err := validateString(args["input"], "input")
+			inputArg, err := validateString(args["input"], "input")
 			if err != nil {
 				return nil, err
+			}
+			input, err := ValidateInputPath(inputArg)
+			if err != nil {
+				return nil, fmt.Errorf("input validation failed: %w", err)
 			}
 
 			// Validate quality (default 90)
@@ -51,10 +55,13 @@ func RegisterCompressImageTool(server *mcp.MCPServer) {
 			}
 
 			// Determine output path
-			output, _ := args["output"].(string)
-			if output == "" {
-				output = generateOutputPath(input, "compressed")
+			outputArg, _ := args["output"].(string)
+			defaultFilename := generateOutputPath(input, "compressed")
+			pathResult, pathErr := ValidateAndFixOutputPath(outputArg, defaultFilename)
+			if pathErr != nil {
+				return nil, fmt.Errorf("output path validation failed: %w", pathErr)
 			}
+			output := pathResult.Path
 
 			// Get original file size
 			originalSize, err := getFileSize(input)
@@ -88,7 +95,7 @@ func RegisterCompressImageTool(server *mcp.MCPServer) {
 			// Get absolute path for response
 			absPath, _ := filepath.Abs(output)
 
-			return map[string]interface{}{
+			result := map[string]interface{}{
 				"success":               true,
 				"output_path":           absPath,
 				"quality":               quality,
@@ -99,7 +106,11 @@ func RegisterCompressImageTool(server *mcp.MCPServer) {
 				"savings_percent":       fmt.Sprintf("%.1f%%", savingsPercent),
 				"original_size_human":   formatBytes(originalSize),
 				"compressed_size_human": formatBytes(newSize),
-			}, nil
+			}
+			if pathResult.Warning != "" {
+				result["warning"] = pathResult.Warning
+			}
+			return result, nil
 		},
 	}
 

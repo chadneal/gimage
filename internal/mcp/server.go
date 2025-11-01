@@ -82,6 +82,18 @@ func (s *MCPServer) Start(ctx context.Context) error {
 			continue
 		}
 
+		// CRITICAL: Detect notifications vs requests
+		// Notifications have NO id field and must NOT receive responses
+		if request.ID == nil {
+			if s.verbose {
+				s.logInfo("Received notification: %s (no response will be sent)", request.Method)
+			}
+			// Handle notification but DO NOT send response
+			s.handleNotification(ctx, &request)
+			continue
+		}
+
+		// This is a request (has ID), send a response
 		response := s.handleRequest(ctx, &request)
 
 		responseBytes, err := json.Marshal(response)
@@ -98,6 +110,16 @@ func (s *MCPServer) Start(ctx context.Context) error {
 	}
 
 	return scanner.Err()
+}
+
+// handleNotification processes MCP notifications (messages with no ID that expect no response)
+func (s *MCPServer) handleNotification(ctx context.Context, req *JSONRPCRequest) {
+	// According to MCP spec, notifications are fire-and-forget
+	// We log them but take no action
+	if s.verbose {
+		s.logInfo("Notification received: %s", req.Method)
+	}
+	// No response is sent for notifications
 }
 
 func (s *MCPServer) logInfo(format string, args ...interface{}) {

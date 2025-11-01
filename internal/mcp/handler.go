@@ -18,6 +18,10 @@ func (s *MCPServer) handleRequest(ctx context.Context, req *JSONRPCRequest) *JSO
 		return s.handleListTools(req)
 	case MethodCallTool:
 		return s.handleCallTool(ctx, req)
+	case MethodListPrompts:
+		return s.handleListPrompts(req)
+	case MethodListResources:
+		return s.handleListResources(req)
 	default:
 		return s.errorResponse(req.ID, -32601, fmt.Sprintf("Method not found: %s", req.Method))
 	}
@@ -113,6 +117,36 @@ func (s *MCPServer) handleCallTool(ctx context.Context, req *JSONRPCRequest) *JS
 					"text": formatToolResult(result),
 				},
 			},
+		},
+	}
+}
+
+func (s *MCPServer) handleListPrompts(req *JSONRPCRequest) *JSONRPCResponse {
+	// gimage doesn't expose prompts, return empty list
+	if s.verbose {
+		s.logInfo("Listing prompts (gimage has none)")
+	}
+
+	return &JSONRPCResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result: map[string]interface{}{
+			"prompts": []interface{}{},
+		},
+	}
+}
+
+func (s *MCPServer) handleListResources(req *JSONRPCRequest) *JSONRPCResponse {
+	// gimage doesn't expose resources, return empty list
+	if s.verbose {
+		s.logInfo("Listing resources (gimage has none)")
+	}
+
+	return &JSONRPCResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result: map[string]interface{}{
+			"resources": []interface{}{},
 		},
 	}
 }

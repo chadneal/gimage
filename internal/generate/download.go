@@ -11,11 +11,22 @@ import (
 )
 
 const (
-	defaultOutputDir    = "."
 	defaultOutputPrefix = "generated"
 	defaultFilePerms    = 0644
 	defaultDirPerms     = 0755
 )
+
+var defaultOutputDir = getDefaultOutputDir()
+
+// getDefaultOutputDir returns the default output directory for generated images.
+// Uses home directory if available, otherwise falls back to current directory.
+func getDefaultOutputDir() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "." // Fallback to current directory
+	}
+	return homeDir
+}
 
 // SaveImage saves a generated image to disk at the specified path.
 // If the directory doesn't exist, it will be created.

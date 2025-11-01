@@ -34,10 +34,14 @@ func RegisterScaleImageTool(server *mcp.MCPServer) {
 			"required": []string{"input", "factor"},
 		},
 		Handler: func(args map[string]interface{}) (map[string]interface{}, error) {
-			// Validate input
-			input, err := validateString(args["input"], "input")
+			// Validate input file path
+			inputArg, err := validateString(args["input"], "input")
 			if err != nil {
 				return nil, err
+			}
+			input, err := ValidateInputPath(inputArg)
+			if err != nil {
+				return nil, fmt.Errorf("input validation failed: %w", err)
 			}
 
 			// Validate factor
@@ -49,11 +53,14 @@ func RegisterScaleImageTool(server *mcp.MCPServer) {
 				return nil, fmt.Errorf("factor must be between 0.1 and 10.0")
 			}
 
-			// Determine output path
-			output, _ := args["output"].(string)
-			if output == "" {
-				output = generateOutputPath(input, "scaled")
+			// Validate and fix output path
+			outputArg, _ := args["output"].(string)
+			defaultFilename := generateOutputPath(input, "scaled")
+			pathResult, pathErr := ValidateAndFixOutputPath(outputArg, defaultFilename)
+			if pathErr != nil {
+				return nil, fmt.Errorf("output path validation failed: %w", pathErr)
 			}
+			output := pathResult.Path
 
 			// Get original dimensions
 			origWidth, origHeight, err := getImageDimensions(input)
@@ -87,13 +94,20 @@ func RegisterScaleImageTool(server *mcp.MCPServer) {
 			// Get absolute path for response
 			absPath, _ := filepath.Abs(output)
 
-			return map[string]interface{}{
+			result := map[string]interface{}{
 				"success":       true,
 				"output_path":   absPath,
 				"scale_factor":  factorVal,
 				"original_size": fmt.Sprintf("%dx%d", origWidth, origHeight),
 				"new_size":      fmt.Sprintf("%dx%d", newWidth, newHeight),
-			}, nil
+			}
+
+			// Add warning if path was adjusted
+			if pathResult.Warning != "" {
+				result["warning"] = pathResult.Warning
+			}
+
+			return result, nil
 		},
 	}
 

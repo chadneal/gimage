@@ -137,21 +137,23 @@ func RegisterBatchConvertTool(server *mcp.MCPServer) {
 
 func batchProcessImages(args map[string]interface{}, operation string) (map[string]interface{}, error) {
 	// Validate input directory
-	inputDir, err := validateString(args["input_dir"], "input_dir")
+	inputDirArg, err := validateString(args["input_dir"], "input_dir")
 	if err != nil {
 		return nil, err
+	}
+	inputDir, err := ValidateDirectoryPath(inputDirArg, false) // false = don't create if missing
+	if err != nil {
+		return nil, fmt.Errorf("input directory validation failed: %w", err)
 	}
 
 	// Validate output directory
-	outputDir, err := validateString(args["output_dir"], "output_dir")
+	outputDirArg, err := validateString(args["output_dir"], "output_dir")
 	if err != nil {
 		return nil, err
 	}
-
-	// Create output directory if it doesn't exist
-	err = os.MkdirAll(outputDir, 0755)
+	outputDir, err := ValidateDirectoryPath(outputDirArg, true) // true = create if missing
 	if err != nil {
-		return nil, fmt.Errorf("failed to create output directory: %w", err)
+		return nil, fmt.Errorf("output directory validation failed: %w", err)
 	}
 
 	// Determine number of workers

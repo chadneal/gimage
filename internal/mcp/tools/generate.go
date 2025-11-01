@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/chadneal/gimage/internal/config"
 	"github.com/chadneal/gimage/internal/generate"
@@ -15,7 +16,7 @@ import (
 func RegisterGenerateImageTool(server *mcp.MCPServer) {
 	tool := mcp.Tool{
 		Name:        "generate_image",
-		Description: "Generate an AI image from a text prompt using Gemini or Vertex AI. Supports multiple models (Gemini 2.5 Flash, Imagen 3, Imagen 4), various sizes up to 2048x2048, and style controls (photorealistic, artistic, anime). Can use negative prompts to exclude unwanted elements and seeds for reproducible generation.",
+		Description: "Generate an AI image from a text prompt using Gemini or Vertex AI. Supports multiple models (Gemini 2.5 Flash, Imagen 3, Imagen 4), various sizes up to 2048x2048, and style controls (photorealistic, artistic, anime). Can use negative prompts to exclude unwanted elements and seeds for reproducible generation. IMPORTANT: Always specify an output path (e.g., ~/Desktop/image.png or ~/Documents/image.png) to ensure the file is saved to an accessible location. The tool will automatically try the current directory first, then fall back to the home directory if needed.",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -25,7 +26,7 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 				},
 				"output": map[string]interface{}{
 					"type":        "string",
-					"description": "Output file path. If not provided, auto-generates filename with timestamp (e.g., generated_1234567890.png)",
+					"description": "Output file path. RECOMMENDED: Always specify a path like ~/Desktop/image.png or ~/Documents/image.png. If not provided, will try current directory first, then fall back to home directory. Supports tilde (~) expansion for home directory.",
 				},
 				"size": map[string]interface{}{
 					"type":        "string",
@@ -68,9 +69,21 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 			}
 
 			// Extract optional parameters
-			output, _ := args["output"].(string)
-			if output == "" {
-				output = generate.GenerateOutputPath("png")
+			outputArg, _ := args["output"].(string)
+
+			// Validate and fix output path BEFORE generating image
+			// This avoids wasting API calls if the path is not writable
+			defaultFilename := fmt.Sprintf("generated_%d.png", time.Now().Unix())
+			pathResult, pathErr := ValidateAndFixOutputPath(outputArg, defaultFilename)
+			if pathErr != nil {
+				return nil, fmt.Errorf("output path validation failed: %w\n\nTIP: Try specifying an explicit output path like ~/Desktop/image.png or ~/Documents/image.png", pathErr)
+			}
+			output := pathResult.Path
+
+			// Include warning in response if we had to fall back to a different location
+			var pathWarning string
+			if pathResult.Warning != "" {
+				pathWarning = pathResult.Warning
 			}
 
 			size, _ := args["size"].(string)
@@ -115,9 +128,9 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 
 			if selectedAPI == "gemini" {
 				// Use Gemini REST client
-				apiKey, err := config.GetGeminiAPIKey("")
-				if err != nil {
-					return nil, fmt.Errorf("Gemini API key not configured: %w\nPlease run: gimage auth gemini", err)
+				apiKey, apiErr := config.GetGeminiAPIKey("")
+				if apiErr != nil {
+					return nil, fmt.Errorf("Gemini API key not configured: %w\nPlease run: gimage auth gemini", apiErr)
 				}
 
 				client, err := generate.NewGeminiRESTClient(apiKey)
@@ -185,13 +198,20 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 				absOutput = output
 			}
 
-			return map[string]interface{}{
+			result := map[string]interface{}{
 				"success":     true,
 				"output_path": absOutput,
 				"size":        size,
 				"model":       modelName,
 				"prompt":      prompt,
-			}, nil
+			}
+
+			// Add warning if we had to fall back to a different location
+			if pathWarning != "" {
+				result["warning"] = pathWarning
+			}
+
+			return result, nil
 		},
 	}
 

@@ -34,9 +34,13 @@ func RegisterConvertImageTool(server *mcp.MCPServer) {
 		},
 		Handler: func(args map[string]interface{}) (map[string]interface{}, error) {
 			// Validate input
-			input, err := validateString(args["input"], "input")
+			inputArg, err := validateString(args["input"], "input")
 			if err != nil {
 				return nil, err
+			}
+			input, err := ValidateInputPath(inputArg)
+			if err != nil {
+				return nil, fmt.Errorf("input validation failed: %w", err)
 			}
 
 			// Validate format
@@ -56,16 +60,20 @@ func RegisterConvertImageTool(server *mcp.MCPServer) {
 			}
 
 			// Determine output path
-			output, _ := args["output"].(string)
-			if output == "" {
-				// Change extension to new format
-				ext := filepath.Ext(input)
-				base := strings.TrimSuffix(input, ext)
-				if format == "jpeg" {
-					format = "jpg" // Use .jpg extension for JPEG
-				}
-				output = base + "." + format
+			outputArg, _ := args["output"].(string)
+			// Generate default filename with new extension
+			ext := filepath.Ext(input)
+			base := strings.TrimSuffix(input, ext)
+			targetFormat := format
+			if targetFormat == "jpeg" {
+				targetFormat = "jpg" // Use .jpg extension for JPEG
 			}
+			defaultFilename := base + "." + targetFormat
+			pathResult, pathErr := ValidateAndFixOutputPath(outputArg, defaultFilename)
+			if pathErr != nil {
+				return nil, fmt.Errorf("output path validation failed: %w", pathErr)
+			}
+			output := pathResult.Path
 
 			// Get original format
 			originalExt := filepath.Ext(input)
@@ -90,14 +98,18 @@ func RegisterConvertImageTool(server *mcp.MCPServer) {
 			// Get absolute path for response
 			absPath, _ := filepath.Abs(output)
 
-			return map[string]interface{}{
+			result := map[string]interface{}{
 				"success":         true,
 				"output_path":     absPath,
 				"original_format": originalFormat,
 				"new_format":      format,
 				"original_size":   formatBytes(originalSize),
 				"new_size":        formatBytes(newSize),
-			}, nil
+			}
+			if pathResult.Warning != "" {
+				result["warning"] = pathResult.Warning
+			}
+			return result, nil
 		},
 	}
 
