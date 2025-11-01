@@ -910,6 +910,164 @@ Based on industry trends, MCP capabilities, and common image workflow needs, her
 
 **Technical Approach**: Integrate Tesseract OCR via gosseract.
 
+### 11. **BlurHash Generation**
+**Description**: Generate compact BlurHash representations of images for use as loading placeholders in web and mobile applications.
+
+**Why**: BlurHash provides a visually pleasing blur placeholder while images load, significantly improving perceived performance. Used by companies like Medium, Unsplash, and major social media platforms. The hash is only 20-30 characters but creates a smooth, colorful blur that matches the image's general appearance.
+
+**Use Cases**:
+- Progressive image loading in web applications
+- Mobile app placeholder images
+- Image galleries and portfolios
+- E-commerce product listings
+- Social media feeds
+
+**MCP Tool**: `generate_blurhash`
+```json
+{
+  "input": "photo.jpg",
+  "components_x": 4,  // Horizontal blur components (default: 4)
+  "components_y": 3,  // Vertical blur components (default: 3)
+  "output_format": "json"  // or "text" for just the hash string
+}
+```
+
+**CLI Command**:
+```bash
+# Generate BlurHash for a single image
+gimage blurhash photo.jpg
+
+# Generate with custom components (higher = more detail, longer hash)
+gimage blurhash photo.jpg --x 6 --y 4
+
+# Batch generate BlurHash for all images with JSON output
+gimage batch blurhash photos/ --output hashes.json
+
+# Generate and display preview (shows original + blurred placeholder)
+gimage blurhash photo.jpg --preview
+```
+
+**Response Format**:
+```json
+{
+  "success": true,
+  "input": "/path/to/photo.jpg",
+  "blurhash": "LGF5]+Yk^6#M@-5c,1J5@[or[Q6.",
+  "components": {
+    "x": 4,
+    "y": 3
+  },
+  "image_size": {
+    "width": 3000,
+    "height": 2000
+  },
+  "hash_length": 27,
+  "decode_preview": "data:image/png;base64,iVBORw0KGgoAAAANS..."
+}
+```
+
+**Batch Processing Tool**: `batch_blurhash`
+```json
+{
+  "input_dir": "photos/",
+  "output_file": "blurhashes.json",
+  "components_x": 4,
+  "components_y": 3,
+  "include_preview": false,
+  "workers": 8
+}
+```
+
+**Batch Output Format** (`blurhashes.json`):
+```json
+{
+  "generated_at": "2025-11-01T10:30:00Z",
+  "total_images": 150,
+  "blurhashes": [
+    {
+      "file": "photos/sunset.jpg",
+      "blurhash": "LGF5]+Yk^6#M@-5c,1J5@[or[Q6.",
+      "width": 3000,
+      "height": 2000
+    },
+    {
+      "file": "photos/mountain.jpg",
+      "blurhash": "L6Pj0^jE.AyE_3t7t7R**0o#DgR4",
+      "width": 2400,
+      "height": 1600
+    }
+  ]
+}
+```
+
+**Technical Approach**:
+- Use `github.com/buckket/go-blurhash` library (pure Go implementation)
+- Alternative: `github.com/bbrks/go-blurhash` (optimized version)
+- Algorithm: DCT (Discrete Cosine Transform) for compact representation
+- Default components: 4x3 (good balance of quality vs hash length)
+- Higher components = more detail but longer hash (max 9x9)
+
+**Integration Examples**:
+
+**React/Next.js**:
+```typescript
+import { Blurhash } from 'react-blurhash';
+
+function ImageCard({ src, blurhash }) {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {!loaded && (
+        <Blurhash
+          hash={blurhash}
+          width={400}
+          height={300}
+          resolutionX={32}
+          resolutionY={32}
+          punch={1}
+        />
+      )}
+      <img
+        src={src}
+        onLoad={() => setLoaded(true)}
+        style={{ opacity: loaded ? 1 : 0 }}
+      />
+    </div>
+  );
+}
+```
+
+**Mobile (React Native)**:
+```typescript
+import { Blurhash } from 'react-native-blurhash';
+
+<Blurhash
+  blurhash="LGF5]+Yk^6#M@-5c,1J5@[or[Q6."
+  style={{ width: 400, height: 300 }}
+/>
+```
+
+**Benefits**:
+- **Tiny Size**: 20-30 character string vs 5-10KB JPEG thumbnail
+- **Fast Decode**: Renders in <1ms on modern devices
+- **Smooth UX**: Visually pleasing blur matches actual image colors
+- **No Extra Request**: Hash embedded in HTML/JSON payload
+- **SEO Friendly**: Images load progressively without layout shift
+
+**Performance**:
+- **Encoding**: ~50-100ms per image (typical 3000x2000 photo)
+- **Batch Processing**: ~150 images/minute with 8 workers
+- **Hash Size**: 20-30 bytes (components 4x3)
+- **Decode Time**: <1ms in browser/mobile
+
+**Additional Features**:
+- Preview generation (decode BlurHash to PNG for testing)
+- Validation of BlurHash strings
+- Component optimization recommendations based on image aspect ratio
+- CSV/JSON export for database imports
+- Integration with existing image processing pipelines
+
 ---
 
 ## Implementation Priority Matrix
@@ -928,18 +1086,19 @@ Based on industry trends, MCP capabilities, and common image workflow needs, her
 6. 🆕 **Smart Crop with AI** - Solves common pain point
 
 ### Medium Priority (6-12 months)
-7. 🆕 **Image Upscaling** - Popular feature, moderate complexity
-8. 🆕 **Batch Watermarking** - Frequently requested
-9. ✅ **Tool Annotations** - MCP spec compliance
-10. ✅ **Observability/Metrics** - Production monitoring
-11. 🆕 **Metadata Editor** - Professional photographer need
+7. 🆕 **BlurHash Generation** - Modern web/mobile placeholder technique, high developer demand
+8. 🆕 **Image Upscaling** - Popular feature, moderate complexity
+9. 🆕 **Batch Watermarking** - Frequently requested
+10. ✅ **Tool Annotations** - MCP spec compliance
+11. ✅ **Observability/Metrics** - Production monitoring
+12. 🆕 **Metadata Editor** - Professional photographer need
 
 ### Low Priority (12+ months)
-12. 🆕 **Image Similarity Search** - Niche use case
-13. 🆕 **Collage Generation** - Fun feature, lower priority
-14. 🆕 **Color Palette Extraction** - Designer tool
-15. 🆕 **Animation Creation** - Complex, requires video encoding
-16. 🆕 **OCR/Text Extraction** - Specialized need
+13. 🆕 **Image Similarity Search** - Niche use case
+14. 🆕 **Collage Generation** - Fun feature, lower priority
+15. 🆕 **Color Palette Extraction** - Designer tool
+16. 🆕 **Animation Creation** - Complex, requires video encoding
+17. 🆕 **OCR/Text Extraction** - Specialized need
 
 ---
 
