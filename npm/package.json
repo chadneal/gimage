@@ -1,6 +1,6 @@
 {
   "name": "@chadneal/gimage-mcp",
-  "version": "1.1.12",
+  "version": "1.1.13",
   "description": "MCP server for AI-powered image generation and processing with gimage",
   "keywords": [
     "mcp",
