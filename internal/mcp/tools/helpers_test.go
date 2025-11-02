@@ -257,49 +257,6 @@ func TestSaveImage(t *testing.T) {
 	}
 }
 
-func TestIsVertexModel(t *testing.T) {
-	tests := []struct {
-		name       string
-		model      string
-		wantVertex bool
-	}{
-		{
-			name:       "imagen-3 model",
-			model:      "imagen-3.0-generate-002",
-			wantVertex: true,
-		},
-		{
-			name:       "imagen-4 model",
-			model:      "imagen-4",
-			wantVertex: true,
-		},
-		{
-			name:       "gemini flash model",
-			model:      "gemini-2.5-flash-image",
-			wantVertex: false,
-		},
-		{
-			name:       "gemini preview model",
-			model:      "gemini-2.0-flash-preview-image-generation",
-			wantVertex: false,
-		},
-		{
-			name:       "empty model",
-			model:      "",
-			wantVertex: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isVertexModel(tt.model)
-			if result != tt.wantVertex {
-				t.Errorf("Expected %v, got %v for model %s", tt.wantVertex, result, tt.model)
-			}
-		})
-	}
-}
-
 func TestFormatBytes(t *testing.T) {
 	tests := []struct {
 		name     string

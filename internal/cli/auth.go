@@ -13,8 +13,8 @@ import (
 // authCmd represents the auth command
 var authCmd = &cobra.Command{
 	Use:   "auth",
-	Short: "Manage authentication for Gemini and Vertex AI",
-	Long: `Interactive authentication setup for Gemini API and Vertex AI.
+	Short: "Manage authentication for Gemini, Vertex AI, and AWS Bedrock",
+	Long: `Interactive authentication setup for Gemini API, Vertex AI, and AWS Bedrock.
 
 This command helps you configure your API credentials securely.`,
 }
@@ -45,10 +45,26 @@ Vertex AI supports two authentication modes:
 	},
 }
 
+// authBedrockCmd handles AWS Bedrock authentication
+var authBedrockCmd = &cobra.Command{
+	Use:   "bedrock",
+	Short: "Configure AWS Bedrock authentication",
+	Long: `Interactive setup for AWS Bedrock credentials.
+
+AWS Bedrock supports multiple authentication methods:
+  1. Access Keys - AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+  2. AWS Profile - Named profile from ~/.aws/credentials
+  3. IAM Role - Automatic for EC2/ECS/Lambda (no setup needed)`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return setupBedrockAuth()
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(authCmd)
 	authCmd.AddCommand(authGeminiCmd)
 	authCmd.AddCommand(authVertexCmd)
+	authCmd.AddCommand(authBedrockCmd)
 }
 
 // setupGeminiAuth runs the interactive setup for Gemini API
@@ -314,6 +330,244 @@ func promptWithDefault(reader *bufio.Reader, prompt, defaultValue string, hideIn
 	}
 
 	return input
+}
+
+// setupBedrockAuth runs the interactive setup for AWS Bedrock
+func setupBedrockAuth() error {
+	reader := bufio.NewReader(os.Stdin)
+
+	// Load existing config to use as defaults
+	existingCfg, err := config.LoadConfig()
+	if err != nil {
+		// If config doesn't exist yet, create a new one with defaults
+		existingCfg = &config.Config{
+			DefaultAPI:     "gemini",
+			DefaultModel:   "gemini-2.5-flash-image",
+			DefaultSize:    "1024x1024",
+			VertexLocation: "us-central1",
+			AWSRegion:      "us-east-1",
+			LogLevel:       "info",
+		}
+	}
+
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  AWS Bedrock Authentication Setup")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println()
+	fmt.Println("Choose your authentication method:")
+	fmt.Println()
+	fmt.Println("  1. Bedrock API Key (Bearer Token) - Simple REST API authentication")
+	fmt.Println("     • Get from AWS Console > Bedrock > API Keys")
+	fmt.Println("     • Best for: Quick setup, development")
+	fmt.Println()
+	fmt.Println("  2. Access Keys - Direct AWS credentials (SDK)")
+	fmt.Println("     • Enter AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY")
+	fmt.Println("     • Best for: Testing, development")
+	fmt.Println()
+	fmt.Println("  3. AWS Profile - Named profile from ~/.aws/credentials (SDK)")
+	fmt.Println("     • Use an existing AWS CLI profile")
+	fmt.Println("     • Best for: Multiple AWS accounts, organized credentials")
+	fmt.Println()
+	fmt.Println("  4. IAM Role - Use instance/container role (SDK, no setup needed)")
+	fmt.Println("     • Automatic for EC2, ECS, Lambda environments")
+	fmt.Println("     • Best for: Production deployments, security")
+	fmt.Println()
+
+	// Default to bearer token if it exists
+	defaultMode := "1"
+	if existingCfg.AWSBedrockAPIKey != "" {
+		defaultMode = "1"
+	} else if existingCfg.AWSAccessKeyID != "" {
+		defaultMode = "2"
+	} else if existingCfg.AWSProfile != "" {
+		defaultMode = "3"
+	}
+
+	mode := promptWithDefault(reader, "Choose mode (1, 2, 3, or 4)", defaultMode, false)
+
+	fmt.Println()
+
+	if mode == "1" {
+		// Bedrock API Key (Bearer Token)
+		return setupBedrockAPIKey(reader, existingCfg)
+	} else if mode == "2" {
+		// Access Keys
+		return setupBedrockAccessKeys(reader, existingCfg)
+	} else if mode == "3" {
+		// AWS Profile
+		return setupBedrockProfile(reader, existingCfg)
+	} else {
+		// IAM Role - no config needed
+		return setupBedrockIAMRole(reader, existingCfg)
+	}
+}
+
+// setupBedrockAPIKey sets up AWS Bedrock with API key (bearer token)
+func setupBedrockAPIKey(reader *bufio.Reader, existingCfg *config.Config) error {
+	fmt.Println("━━━ Bedrock API Key Setup ━━━")
+	fmt.Println()
+	fmt.Println("Get your AWS Bedrock API key from:")
+	fmt.Println("  AWS Console > Bedrock > API Keys")
+	fmt.Println()
+	fmt.Println("This uses REST API authentication (simpler, recommended for development)")
+	fmt.Println()
+
+	// API Key
+	apiKey := promptWithDefault(reader, "AWS Bedrock API Key", existingCfg.AWSBedrockAPIKey, true)
+
+	// AWS Region
+	region := promptWithDefault(reader, "AWS Region", existingCfg.AWSRegion, false)
+
+	// Update config
+	existingCfg.AWSBedrockAPIKey = apiKey
+	existingCfg.AWSRegion = region
+	existingCfg.AWSAccessKeyID = ""     // Clear SDK credentials
+	existingCfg.AWSSecretAccessKey = "" // Clear SDK credentials
+	existingCfg.AWSProfile = ""         // Clear profile
+
+	// Save config
+	if err := config.SaveConfig(existingCfg); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	configPath := config.GetConfigPath()
+	fmt.Println()
+	fmt.Println("✓ AWS Bedrock configured successfully (REST API mode)!")
+	fmt.Printf("  Location: %s\n", configPath)
+	fmt.Println()
+	fmt.Println("You can now use AWS Bedrock with:")
+	fmt.Println("  gimage generate --api bedrock \"your prompt here\"")
+	fmt.Println()
+	fmt.Println("Or use the nova-canvas model alias:")
+	fmt.Println("  gimage generate --model nova-canvas \"your prompt here\"")
+	fmt.Println()
+
+	return nil
+}
+
+// setupBedrockAccessKeys sets up AWS Bedrock with access keys
+func setupBedrockAccessKeys(reader *bufio.Reader, existingCfg *config.Config) error {
+	fmt.Println("━━━ Access Keys Setup ━━━")
+	fmt.Println()
+	fmt.Println("Get your AWS credentials from:")
+	fmt.Println("  AWS Console > IAM > Users > Security Credentials")
+	fmt.Println()
+	fmt.Println("Required IAM permissions:")
+	fmt.Println("  • bedrock:InvokeModel")
+	fmt.Println()
+
+	// Access Key ID
+	accessKeyID := promptWithDefault(reader, "AWS Access Key ID", existingCfg.AWSAccessKeyID, false)
+
+	// Secret Access Key
+	secretKey := promptWithDefault(reader, "AWS Secret Access Key", existingCfg.AWSSecretAccessKey, true)
+
+	// AWS Region
+	region := promptWithDefault(reader, "AWS Region", existingCfg.AWSRegion, false)
+
+	// Update config
+	existingCfg.AWSAccessKeyID = accessKeyID
+	existingCfg.AWSSecretAccessKey = secretKey
+	existingCfg.AWSRegion = region
+	existingCfg.AWSProfile = ""        // Clear profile if using access keys
+	existingCfg.AWSBedrockAPIKey = "" // Clear bearer token if using SDK
+
+	// Save config
+	if err := config.SaveConfig(existingCfg); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	configPath := config.GetConfigPath()
+	fmt.Println()
+	fmt.Println("✓ AWS Bedrock configured successfully!")
+	fmt.Printf("  Location: %s\n", configPath)
+	fmt.Println()
+	fmt.Println("You can now use AWS Bedrock with:")
+	fmt.Println("  gimage generate --api bedrock \"your prompt here\"")
+	fmt.Println()
+	fmt.Println("Or use the nova-canvas model alias:")
+	fmt.Println("  gimage generate --model nova-canvas \"your prompt here\"")
+	fmt.Println()
+
+	return nil
+}
+
+// setupBedrockProfile sets up AWS Bedrock with AWS profile
+func setupBedrockProfile(reader *bufio.Reader, existingCfg *config.Config) error {
+	fmt.Println("━━━ AWS Profile Setup ━━━")
+	fmt.Println()
+	fmt.Println("Using AWS CLI profile from ~/.aws/credentials")
+	fmt.Println()
+
+	// AWS Profile name
+	profile := promptWithDefault(reader, "AWS Profile name", existingCfg.AWSProfile, false)
+
+	// AWS Region
+	region := promptWithDefault(reader, "AWS Region", existingCfg.AWSRegion, false)
+
+	// Update config
+	existingCfg.AWSProfile = profile
+	existingCfg.AWSRegion = region
+	existingCfg.AWSAccessKeyID = ""     // Clear access keys if using profile
+	existingCfg.AWSSecretAccessKey = "" // Clear access keys if using profile
+	existingCfg.AWSBedrockAPIKey = ""   // Clear bearer token if using SDK
+
+	// Save config
+	if err := config.SaveConfig(existingCfg); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	configPath := config.GetConfigPath()
+	fmt.Println()
+	fmt.Println("✓ AWS Bedrock configured successfully!")
+	fmt.Printf("  Location: %s\n", configPath)
+	fmt.Println()
+	fmt.Println("You can now use AWS Bedrock with:")
+	fmt.Println("  gimage generate --api bedrock \"your prompt here\"")
+	fmt.Println()
+
+	return nil
+}
+
+// setupBedrockIAMRole sets up AWS Bedrock with IAM role (no credentials needed)
+func setupBedrockIAMRole(reader *bufio.Reader, existingCfg *config.Config) error {
+	fmt.Println("━━━ IAM Role Setup ━━━")
+	fmt.Println()
+	fmt.Println("Using IAM role from EC2/ECS/Lambda instance.")
+	fmt.Println()
+	fmt.Println("No credentials needed - the AWS SDK will automatically")
+	fmt.Println("use the instance's IAM role.")
+	fmt.Println()
+
+	// AWS Region (still needed)
+	region := promptWithDefault(reader, "AWS Region", existingCfg.AWSRegion, false)
+
+	// Update config
+	existingCfg.AWSRegion = region
+	existingCfg.AWSAccessKeyID = ""     // Clear access keys
+	existingCfg.AWSSecretAccessKey = "" // Clear secret key
+	existingCfg.AWSProfile = ""         // Clear profile
+	existingCfg.AWSBedrockAPIKey = ""   // Clear bearer token if using SDK
+
+	// Save config
+	if err := config.SaveConfig(existingCfg); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	configPath := config.GetConfigPath()
+	fmt.Println()
+	fmt.Println("✓ AWS Bedrock configured successfully!")
+	fmt.Printf("  Location: %s\n", configPath)
+	fmt.Println()
+	fmt.Println("Make sure your instance has an IAM role with:")
+	fmt.Println("  • bedrock:InvokeModel permission")
+	fmt.Println("  • Model access enabled in AWS Bedrock console")
+	fmt.Println()
+	fmt.Println("You can now use AWS Bedrock with:")
+	fmt.Println("  gimage generate --api bedrock \"your prompt here\"")
+	fmt.Println()
+
+	return nil
 }
 
 // maskString masks all but the last 4 characters of a string

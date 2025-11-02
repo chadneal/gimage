@@ -14,6 +14,14 @@ import (
 	"github.com/spf13/viper"
 )
 
+// ANSI color codes
+const (
+	colorReset  = "\033[0m"
+	colorGreen  = "\033[32m"
+	colorRed    = "\033[31m"
+	colorYellow = "\033[33m"
+)
+
 // Helper functions for output
 func printVerbose(format string, args ...interface{}) {
 	if viper.GetBool("verbose") {
@@ -27,6 +35,42 @@ func printInfo(format string, args ...interface{}) {
 
 func printSuccess(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "✓ "+format+"\n", args...)
+}
+
+func printWarning(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "⚠ "+format+"\n", args...)
+}
+
+func greenYes() string {
+	return "✅"
+}
+
+func redNo() string {
+	return "❌"
+}
+
+// padRight pads a string to the right, accounting for ANSI color codes
+// which don't contribute to visible width
+func padRight(s string, width int) string {
+	// Count ANSI escape sequences (they don't contribute to visible width)
+	visibleLen := 0
+	inEscape := false
+	for _, r := range s {
+		if r == '\033' {
+			inEscape = true
+		} else if inEscape && r == 'm' {
+			inEscape = false
+		} else if !inEscape {
+			visibleLen++
+		}
+	}
+
+	padding := width - visibleLen
+	if padding <= 0 {
+		return s
+	}
+
+	return s + strings.Repeat(" ", padding)
 }
 
 func formatImageSize(bytes int64) string {
@@ -45,7 +89,7 @@ func formatImageSize(bytes int64) string {
 var generateCmd = &cobra.Command{
 	Use:   "generate [prompt]",
 	Short: "Generate an image from a text prompt using AI",
-	Long: `Generate an image from a text prompt using Google Gemini or Vertex AI.
+	Long: `Generate an image from a text prompt using Google Gemini, Vertex AI, or AWS Bedrock.
 
 The prompt should describe the image you want to generate. You can optionally
 specify style, size, negative prompts, and other parameters.
@@ -57,14 +101,17 @@ Examples:
   # Generate with default settings (Gemini 2.5 Flash)
   gimage generate "a sunset over mountains"
 
-  # Generate with specific model
+  # Generate with specific model (auto-detects API)
   gimage generate "futuristic city" --model imagen-4
+
+  # Generate with AWS Bedrock Nova Canvas (auto-detects bedrock API)
+  gimage generate "futuristic city" --model nova-canvas
 
   # Generate with specific style and size
   gimage generate "abstract art" --size 1024x1024 --style photorealistic
 
-  # Use Vertex AI (requires --project for vertex models)
-  gimage generate "abstract art" --api vertex --model imagen-4 --project my-project
+  # Override API selection (rarely needed)
+  gimage generate "abstract art" --api vertex --model imagen-4
 
   # Use negative prompts and seed for reproducibility
   gimage generate "forest scene" --negative "people, buildings" --seed 12345`,
@@ -142,30 +189,48 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 			// Auto-detect from available credentials
 			hasGemini := config.HasGeminiCredentials()
 			hasVertex := config.HasVertexCredentials()
+			hasBedrock := config.HasBedrockCredentials()
 
-			if hasGemini && !hasVertex {
-				// Only Gemini credentials available
-				selectedAPI = "gemini"
-				printVerbose("Auto-detected Gemini API (found credentials)")
-			} else if hasVertex && !hasGemini {
-				// Only Vertex credentials available
-				selectedAPI = "vertex"
-				printVerbose("Auto-detected Vertex API (found credentials)")
-			} else if hasGemini && hasVertex {
-				// Both available - check default_api in config, or default to gemini
+			// Count available credentials
+			availableCount := 0
+			if hasGemini {
+				availableCount++
+			}
+			if hasVertex {
+				availableCount++
+			}
+			if hasBedrock {
+				availableCount++
+			}
+
+			if availableCount == 0 {
+				// No credentials found
+				return fmt.Errorf("no API credentials found. Please set up credentials using:\n" +
+					"  Gemini:  gimage auth gemini\n" +
+					"  Vertex:  gimage auth vertex\n" +
+					"  Bedrock: gimage auth bedrock")
+			} else if availableCount == 1 {
+				// Only one API available
+				if hasGemini {
+					selectedAPI = "gemini"
+					printVerbose("Auto-detected Gemini API (found credentials)")
+				} else if hasVertex {
+					selectedAPI = "vertex"
+					printVerbose("Auto-detected Vertex API (found credentials)")
+				} else {
+					selectedAPI = "bedrock"
+					printVerbose("Auto-detected AWS Bedrock API (found credentials)")
+				}
+			} else {
+				// Multiple APIs available - check default_api in config, or default to gemini
 				cfg, err := config.LoadConfig()
 				if err == nil && cfg.DefaultAPI != "" {
 					selectedAPI = cfg.DefaultAPI
 					printVerbose("Using default API from config: %s", selectedAPI)
 				} else {
 					selectedAPI = "gemini"
-					printVerbose("Both APIs available, defaulting to Gemini")
+					printVerbose("Multiple APIs available, defaulting to Gemini")
 				}
-			} else {
-				// No credentials found
-				return fmt.Errorf("no API credentials found. Please set up credentials using:\n" +
-					"  Gemini:  gimage auth gemini\n" +
-					"  Vertex:  gimage auth vertex")
 			}
 		}
 	}
@@ -314,8 +379,81 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 			generatedImage, err = client.GenerateImage(ctx, prompt, options)
 		}
+	} else if selectedAPI == "bedrock" {
+		// Use AWS Bedrock API - choose between REST (bearer token) or SDK (IAM/keys)
+		region := config.GetAWSRegion("")
+		printVerbose("Using AWS Bedrock region: %s", region)
+
+		modelName := model
+		if modelName == "" {
+			modelName = generate.ModelNovaCanvas
+		}
+
+		printVerbose("Using model: %s", modelName)
+
+		// Resolve model alias and show info
+		modelInfo, err := generate.GetModelInfo(modelName)
+		if err != nil {
+			return fmt.Errorf("unknown model: %s", modelName)
+		}
+
+		// Use the resolved full model ID
+		resolvedModelID := modelInfo.Name
+		printVerbose("Resolved model ID: %s", resolvedModelID)
+
+		printVerbose("Model: %s (%s)", modelInfo.DisplayName, modelInfo.Quality)
+		printVerbose("Max resolution: %s", modelInfo.Pricing.MaxResolution)
+
+		// Show pricing info
+		if !modelInfo.Free {
+			cost, _, explanation := generate.GetEstimatedCost(modelInfo, size, 1)
+			printVerbose("Estimated cost: %s", explanation)
+
+			// Warn if expensive (cost > $0.05)
+			if cost > 0.05 {
+				fmt.Fprintf(os.Stderr, "⚠️  %s costs $%.4f/image\n", modelInfo.DisplayName, *modelInfo.Pricing.CostPerImage)
+			}
+		}
+
+		// Update options to use resolved model ID (not alias)
+		bedrockOptions := options
+		bedrockOptions.Model = resolvedModelID
+
+		// Determine which authentication method to use
+		// Priority: Bearer token (REST) > AWS SDK (keys/profile/IAM)
+		cfg, _ := config.LoadConfig()
+		bearerToken := os.Getenv("AWS_BEARER_TOKEN_BEDROCK")
+		if bearerToken == "" && cfg != nil {
+			bearerToken = cfg.AWSBedrockAPIKey
+		}
+
+		if bearerToken != "" {
+			// Use REST client with bearer token
+			printVerbose("Using Bedrock REST API with bearer token authentication")
+			printInfo("Generating image with AWS Bedrock (REST API)...")
+
+			client, err := generate.NewBedrockRESTClient(bearerToken, region)
+			if err != nil {
+				return fmt.Errorf("failed to create AWS Bedrock REST client: %w", err)
+			}
+			defer client.Close()
+
+			generatedImage, err = client.GenerateImage(ctx, prompt, bedrockOptions)
+		} else {
+			// Use SDK client with IAM/keys/profile
+			printVerbose("Using Bedrock SDK with IAM/keys/profile authentication")
+			printInfo("Generating image with AWS Bedrock (SDK)...")
+
+			client, err := generate.NewBedrockSDKClient(ctx, region)
+			if err != nil {
+				return fmt.Errorf("failed to create AWS Bedrock SDK client: %w", err)
+			}
+			defer client.Close()
+
+			generatedImage, err = client.GenerateImage(ctx, prompt, bedrockOptions)
+		}
 	} else {
-		return fmt.Errorf("invalid API: %s (must be 'gemini' or 'vertex')", selectedAPI)
+		return fmt.Errorf("invalid API: %s (must be 'gemini', 'vertex', or 'bedrock')", selectedAPI)
 	}
 
 	if err != nil {
@@ -366,60 +504,200 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 // printAvailableModels displays all available models in a formatted table
 func printAvailableModels() error {
-	printInfo("Available Models:\n")
+	// Check which APIs have credentials
+	hasGemini := config.HasGeminiCredentials()
+	hasVertex := config.HasVertexCredentials()
+	hasBedrock := config.HasBedrockCredentials()
+	hasAnyAuth := hasGemini || hasVertex || hasBedrock
 
-	// Group by API
+	// ASCII art header
+	printInfo("\n╔═══════════════════════════════════════════════════════════════════════════════╗")
+	printInfo("║                                                                               ║")
+	printInfo("║     █████╗ ██╗   ██╗ █████╗ ██╗██╗      █████╗ ██████╗ ██╗     ███████╗     ║")
+	printInfo("║    ██╔══██╗██║   ██║██╔══██╗██║██║     ██╔══██╗██╔══██╗██║     ██╔════╝     ║")
+	printInfo("║    ███████║██║   ██║███████║██║██║     ███████║██████╔╝██║     █████╗       ║")
+	printInfo("║    ██╔══██║╚██╗ ██╔╝██╔══██║██║██║     ██╔══██║██╔══██╗██║     ██╔══╝       ║")
+	printInfo("║    ██║  ██║ ╚████╔╝ ██║  ██║██║███████╗██║  ██║██████╔╝███████╗███████╗     ║")
+	printInfo("║    ╚═╝  ╚═╝  ╚═══╝  ╚═╝  ╚═╝╚═╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝     ║")
+	printInfo("║                                                                               ║")
+	printInfo("║               🎨  AI Image Generation Models  🎨                              ║")
+	printInfo("║                                                                               ║")
+	printInfo("╚═══════════════════════════════════════════════════════════════════════════════╝\n")
+
+	if !hasAnyAuth {
+		printWarning("⚠️  No API credentials configured. Set up authentication to use these models:\n")
+	}
+
+	// Print Gemini models - ALWAYS show, indicate auth status
 	geminiModels := generate.ListModelsByAPI("gemini")
-	vertexModels := generate.ListModelsByAPI("vertex")
-
-	// Print Gemini models
-	printSuccess("Gemini API (Free Tier Available):")
-	printInfo("  %-40s %-30s %-10s %s", "Model Name", "Display Name", "Priority", "Pricing")
-	printInfo("  %s", strings.Repeat("-", 100))
+	printInfo("┌─────────────────────────────────────────────────────────────────────────────────┐")
+	if hasGemini {
+		printSuccess("│ ✓ Gemini API (AUTHENTICATED - Free Tier Available)                             │")
+	} else {
+		printWarning("│ ○ Gemini API (NOT AUTHENTICATED - Setup: gimage auth gemini)                   │")
+	}
+	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
+	printInfo("│ Models:                                                                         │")
+	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
 	for _, m := range geminiModels {
 		pricing := generate.FormatPricingDisplay(&m)
 		priorityMark := fmt.Sprintf("%d", m.Priority)
 		if m.Name == generate.DefaultModel {
 			priorityMark = fmt.Sprintf("%d ⭐", m.Priority)
 		}
-		printInfo("  %-40s %-30s %-10s %s", m.Name, m.DisplayName, priorityMark, pricing)
+		authMark := greenYes()
+		if !hasGemini {
+			authMark = redNo()
+		}
+		// Display alias if available, otherwise full name
+		displayName := m.Name
+		if alias := generate.GetPreferredAlias(m.Name); alias != "" {
+			displayName = fmt.Sprintf("%s (%s)", alias, m.Name)
+		}
+		// Print model name and display name on first line (73 chars for model name)
+		paddedName := padRight(displayName, 73)
+		printInfo("│ %s  %s │", authMark, paddedName)
+		// Print details on second line (indented)
+		printInfo("│     Priority: %-3s  Pricing: %-55s │", priorityMark, pricing)
 		if viper.GetBool("verbose") {
-			printVerbose("      %s", m.Description)
+			printVerbose("│     %s", m.Description)
 			if m.Pricing.TokensPerImage != nil {
-				printVerbose("      Tokens per image: ~%d", *m.Pricing.TokensPerImage)
+				printVerbose("│     Tokens per image: ~%d", *m.Pricing.TokensPerImage)
 			}
 		}
 	}
+	printInfo("└─────────────────────────────────────────────────────────────────────────────────┘\n")
 
-	// Print Vertex models
-	printSuccess("\nVertex AI (Paid - Requires GCP):")
-	printInfo("  %-40s %-30s %-10s %s", "Model Name", "Display Name", "Priority", "Pricing")
-	printInfo("  %s", strings.Repeat("-", 100))
+	// Print Vertex models - ALWAYS show, indicate auth status
+	vertexModels := generate.ListModelsByAPI("vertex")
+	printInfo("┌─────────────────────────────────────────────────────────────────────────────────┐")
+	if hasVertex {
+		printSuccess("│ ✓ Vertex AI (AUTHENTICATED - Paid, Requires GCP)                               │")
+	} else {
+		printWarning("│ ○ Vertex AI (NOT AUTHENTICATED - Setup: gimage auth vertex)                    │")
+	}
+	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
+	printInfo("│ Models:                                                                         │")
+	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
 	for _, m := range vertexModels {
 		pricing := generate.FormatPricingDisplay(&m)
 		priorityMark := fmt.Sprintf("%d", m.Priority)
 		if m.Quality == "premium" {
 			priorityMark = fmt.Sprintf("%d ★", m.Priority)
 		}
-		printInfo("  %-40s %-30s %-10s %s", m.Name, m.DisplayName, priorityMark, pricing)
+		authMark := greenYes()
+		if !hasVertex {
+			authMark = redNo()
+		}
+		// Display alias if available, otherwise full name
+		displayName := m.Name
+		if alias := generate.GetPreferredAlias(m.Name); alias != "" {
+			displayName = fmt.Sprintf("%s (%s)", alias, m.Name)
+		}
+		// Print model name and display name on first line (73 chars for model name)
+		paddedName := padRight(displayName, 73)
+		printInfo("│ %s  %s │", authMark, paddedName)
+		// Print details on second line (indented)
+		printInfo("│     Priority: %-3s  Pricing: %-55s │", priorityMark, pricing)
 		if viper.GetBool("verbose") {
-			printVerbose("      %s", m.Description)
+			printVerbose("│     %s", m.Description)
 		}
 	}
+	printInfo("└─────────────────────────────────────────────────────────────────────────────────┘\n")
 
-	printInfo("\nPriority Guide:")
-	printInfo("  Lower number = higher priority (auto-selected when no model specified)")
-	printInfo("  ⭐ = Default model")
-	printInfo("  ★ = Premium quality")
+	// Print Bedrock models - ALWAYS show, indicate auth status
+	bedrockModels := generate.ListModelsByAPI("bedrock")
+	printInfo("┌─────────────────────────────────────────────────────────────────────────────────┐")
+	if hasBedrock {
+		printSuccess("│ ✓ AWS Bedrock (AUTHENTICATED - Paid, Requires AWS)                             │")
+	} else {
+		printWarning("│ ○ AWS Bedrock (NOT AUTHENTICATED - Setup: gimage auth bedrock)                 │")
+	}
+	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
+	printInfo("│ Models:                                                                         │")
+	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
+	for _, m := range bedrockModels {
+		pricing := generate.FormatPricingDisplay(&m)
+		priorityMark := fmt.Sprintf("%d", m.Priority)
+		if m.Quality == "premium" {
+			priorityMark = fmt.Sprintf("%d ★", m.Priority)
+		}
+		authMark := greenYes()
+		if !hasBedrock {
+			authMark = redNo()
+		}
+		// Display alias if available, otherwise full name
+		displayName := m.Name
+		if alias := generate.GetPreferredAlias(m.Name); alias != "" {
+			displayName = fmt.Sprintf("%s (%s)", alias, m.Name)
+		}
+		// Print model name and display name on first line (73 chars for model name)
+		paddedName := padRight(displayName, 73)
+		printInfo("│ %s  %s │", authMark, paddedName)
+		// Print details on second line (indented)
+		printInfo("│     Priority: %-3s  Pricing: %-55s │", priorityMark, pricing)
+		if viper.GetBool("verbose") {
+			printVerbose("│     %s", m.Description)
+		}
+	}
+	printInfo("└─────────────────────────────────────────────────────────────────────────────────┘\n")
 
-	printInfo("\nUsage:")
-	printInfo("  gimage generate \"your prompt\" --model <model-name>")
-	printInfo("\nRecommended:")
-	printInfo("  Free users:  gemini-2.5-flash-image (500/day FREE)")
-	printInfo("  Paid users:  imagen-4.0-fast-generate-001 ($0.02/image, fastest paid)")
-	printInfo("\nExamples:")
-	printInfo("  gimage generate \"sunset\" --model gemini-2.5-flash-image")
-	printInfo("  gimage generate \"abstract art\" --model imagen-4-fast --project my-gcp-project")
+	printInfo("╔═══════════════════════════════════════════════════════════════════════════════╗")
+	printInfo("║                                   LEGEND                                      ║")
+	printInfo("╠═══════════════════════════════════════════════════════════════════════════════╣")
+	printInfo("║  %s  = Authenticated (ready to use)                                          ║", greenYes())
+	printInfo("║  %s  = Not authenticated (run setup command)                                 ║", redNo())
+	printInfo("║  ⭐  = Default model (auto-selected)                                          ║")
+	printInfo("║  ★  = Premium quality                                                        ║")
+	printInfo("║  Lower priority number = higher priority for auto-selection                 ║")
+	printInfo("╚═══════════════════════════════════════════════════════════════════════════════╝")
+
+	printInfo("\n╔═══════════════════════════════════════════════════════════════════════════════╗")
+	printInfo("║                                 QUICK START                                   ║")
+	printInfo("╠═══════════════════════════════════════════════════════════════════════════════╣")
+	printInfo("║  Usage: gimage generate \"your prompt\" --model <model-name>                   ║")
+	printInfo("╠═══════════════════════════════════════════════════════════════════════════════╣")
+	printInfo("║  Recommended Models:                                                          ║")
+	if hasGemini {
+		printInfo("║    ✓ Free users:  gemini (500/day FREE)                                       ║")
+	} else {
+		printInfo("║    ○ Free users:  gemini (setup: gimage auth gemini)                          ║")
+	}
+	if hasVertex {
+		printInfo("║    ✓ Paid users:  imagen-4-fast ($0.02/image, fastest paid)                  ║")
+	} else {
+		printInfo("║    ○ Paid users:  imagen-4-fast (setup: gimage auth vertex)                  ║")
+	}
+	if hasBedrock {
+		printInfo("║    ✓ AWS users:   nova-canvas ($0.04/image standard, $0.08 premium)          ║")
+	} else {
+		printInfo("║    ○ AWS users:   nova-canvas (setup: gimage auth bedrock)                   ║")
+	}
+	printInfo("╠═══════════════════════════════════════════════════════════════════════════════╣")
+	printInfo("║  Examples:                                                                    ║")
+	if hasGemini {
+		printInfo("║    gimage generate \"sunset\" --model gemini                                   ║")
+	}
+	if hasVertex {
+		printInfo("║    gimage generate \"abstract art\" --model imagen-4-fast                      ║")
+	}
+	if hasBedrock {
+		printInfo("║    gimage generate \"landscape\" --api bedrock                                 ║")
+		printInfo("║    gimage generate \"portrait\" --model nova-canvas                            ║")
+	}
+	printInfo("╚═══════════════════════════════════════════════════════════════════════════════╝")
+
+	if !hasAnyAuth {
+		printInfo("\n╔═══════════════════════════════════════════════════════════════════════════════╗")
+		printInfo("║                            GET STARTED                                        ║")
+		printInfo("╠═══════════════════════════════════════════════════════════════════════════════╣")
+		printInfo("║  To get started, authenticate with at least one API:                         ║")
+		printInfo("║                                                                               ║")
+		printInfo("║    gimage auth gemini   # Fastest, has free tier                             ║")
+		printInfo("║    gimage auth vertex   # Highest quality (paid)                             ║")
+		printInfo("║    gimage auth bedrock  # AWS integration (paid)                             ║")
+		printInfo("╚═══════════════════════════════════════════════════════════════════════════════╝")
+	}
 
 	return nil
 }

@@ -19,11 +19,11 @@ Complete reference for all 10 MCP tools available in the gimage server.
 
 ## generate_image
 
-Generate an AI image from a text prompt using Gemini or Vertex AI.
+Generate an AI image from a text prompt using Gemini, Vertex AI, or AWS Bedrock.
 
 ### Description
 
-Creates images from text descriptions using state-of-the-art AI models. Supports multiple models (Gemini 2.5 Flash, Imagen 3, Imagen 4), various sizes up to 2048x2048, and style controls. Can use negative prompts to exclude unwanted elements and seeds for reproducible generation.
+Creates images from text descriptions using state-of-the-art AI models. Supports multiple models (Gemini 2.5 Flash, Imagen 3, Imagen 4, Nova Canvas), various sizes up to 2048x2048, and style controls. Can use negative prompts to exclude unwanted elements, seeds for reproducible generation, and quality presets for optimal results.
 
 ### Parameters
 
@@ -33,12 +33,16 @@ Creates images from text descriptions using state-of-the-art AI models. Supports
 | `output` | string | No | Auto-generated | Output file path |
 | `size` | string | No | "1024x1024" | Image dimensions |
 | `model` | string | No | "gemini-2.5-flash-image" | AI model to use |
+| `api` | string | No | Auto-detect | Backend API (gemini, vertex, bedrock) |
 | `style` | string | No | - | Image style (photorealistic, artistic, anime) |
 | `negative` | string | No | - | Negative prompt (what to exclude) |
 | `seed` | integer | No | - | Random seed for reproducibility |
+| `quality` | string | No | "standard" | Quality preset (standard, premium) - Bedrock only |
+| `cfg_scale` | number | No | 8.0 | Prompt adherence strength (1.1-10.0) - Bedrock only |
 
 ### Supported Sizes
 
+**Gemini & Vertex AI:**
 - `256x256`
 - `512x512`
 - `1024x1024` (default)
@@ -46,12 +50,28 @@ Creates images from text descriptions using state-of-the-art AI models. Supports
 - `1792x1024`
 - `2048x2048` (Vertex AI only)
 
+**AWS Bedrock (Nova Canvas):**
+- `1024x1024` (1:1 ratio)
+- `1280x720` (16:9 landscape)
+- `720x1280` (9:16 portrait)
+- `768x1152` (2:3 portrait)
+- `1152x768` (3:2 landscape)
+- `1408x1408` (1:1 large)
+- `1173x640` (ultra-wide landscape)
+- `640x1173` (ultra-wide portrait)
+
 ### Supported Models
 
+**Google Gemini API:**
 - **gemini-2.5-flash-image** (default, recommended)
 - **gemini-2.0-flash-preview-image-generation**
-- **imagen-3.0-generate-002** (requires Vertex AI)
-- **imagen-4** (requires Vertex AI, highest quality)
+
+**Google Vertex AI:**
+- **imagen-3.0-generate-002** (Imagen 3)
+- **imagen-4** (highest quality, up to 2048x2048)
+
+**AWS Bedrock:**
+- **amazon.nova-canvas-v1:0** (Nova Canvas, up to 1408x1408)
 
 ### Returns
 
@@ -67,7 +87,7 @@ Creates images from text descriptions using state-of-the-art AI models. Supports
 
 ### Examples
 
-**Basic generation:**
+**Basic generation (Gemini):**
 ```
 Generate an image of a sunset over mountains
 ```
@@ -85,6 +105,21 @@ Generate a 1024x1792 image of a forest scene, but exclude any people or building
 **Reproducible generation:**
 ```
 Generate an image with seed 42 of abstract patterns
+```
+
+**AWS Bedrock Nova Canvas with premium quality:**
+```
+Generate a premium quality image of a futuristic cityscape using Nova Canvas model
+```
+
+**Nova Canvas with negative prompt and CFG scale:**
+```
+Create an image of a serene lake at dawn using Nova Canvas, exclude boats and people, with high prompt adherence (cfg_scale 10)
+```
+
+**Nova Canvas ultra-wide format:**
+```
+Generate a 1173x640 panoramic landscape using Nova Canvas model
 ```
 
 ---
@@ -514,6 +549,10 @@ Error messages are designed to be clear and actionable:
 - **Fast**: resize, scale, crop, convert (< 1 second for typical images)
 - **Medium**: compress (1-3 seconds depending on size and quality)
 - **Slow**: generate (5-30 seconds depending on model and size)
+  - Gemini 2.5 Flash: ~5-10 seconds
+  - Imagen 3/4: ~10-20 seconds
+  - Nova Canvas Standard: ~8-12 seconds
+  - Nova Canvas Premium: ~15-25 seconds
 
 ### Batch Operations
 
@@ -528,7 +567,10 @@ Error messages are designed to be clear and actionable:
 1. Use batch operations for multiple images instead of repeated single operations
 2. Increase workers for faster batch processing (up to 16)
 3. Use smaller images when possible
-4. For generation, use Gemini 2.5 Flash for fastest results
+4. For generation:
+   - Use Gemini 2.5 Flash for fastest results
+   - Use Nova Canvas Standard for cost-effective generation ($0.04/image)
+   - Use Nova Canvas Premium or Imagen 4 for highest quality
 
 ---
 

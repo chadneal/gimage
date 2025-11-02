@@ -16,6 +16,11 @@ type Config struct {
 	VertexProject         string
 	VertexLocation        string
 	VertexCredentialsPath string
+	AWSAccessKeyID        string // For AWS Bedrock SDK
+	AWSSecretAccessKey    string // For AWS Bedrock SDK
+	AWSRegion             string // AWS region (default: us-east-1)
+	AWSProfile            string // AWS profile name
+	AWSBedrockAPIKey      string // For AWS Bedrock REST API (bearer token)
 	DefaultAPI            string
 	DefaultModel          string
 	DefaultSize           string
@@ -32,6 +37,7 @@ func LoadConfig() (*Config, error) {
 		DefaultModel:   "gemini-2.5-flash-image",
 		DefaultSize:    "1024x1024",
 		VertexLocation: "us-central1",
+		AWSRegion:      "us-east-1",
 		LogLevel:       "info",
 	}
 
@@ -61,6 +67,21 @@ func LoadConfig() (*Config, error) {
 	if credsPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); credsPath != "" {
 		cfg.VertexCredentialsPath = credsPath
 	}
+	if accessKey := os.Getenv("AWS_ACCESS_KEY_ID"); accessKey != "" {
+		cfg.AWSAccessKeyID = accessKey
+	}
+	if secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY"); secretKey != "" {
+		cfg.AWSSecretAccessKey = secretKey
+	}
+	if region := os.Getenv("AWS_REGION"); region != "" {
+		cfg.AWSRegion = region
+	}
+	if profile := os.Getenv("AWS_PROFILE"); profile != "" {
+		cfg.AWSProfile = profile
+	}
+	if bedrockKey := os.Getenv("AWS_BEARER_TOKEN_BEDROCK"); bedrockKey != "" {
+		cfg.AWSBedrockAPIKey = bedrockKey
+	}
 	if logLevel := os.Getenv("GIMAGE_LOG_LEVEL"); logLevel != "" {
 		cfg.LogLevel = logLevel
 	}
@@ -77,6 +98,9 @@ func LoadConfig() (*Config, error) {
 	}
 	if cfg.VertexLocation == "" {
 		cfg.VertexLocation = "us-central1"
+	}
+	if cfg.AWSRegion == "" {
+		cfg.AWSRegion = "us-east-1"
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
@@ -135,6 +159,16 @@ func parseMarkdownConfig(path string, cfg *Config) error {
 			cfg.VertexLocation = value
 		case "vertex_credentials_path":
 			cfg.VertexCredentialsPath = value
+		case "aws_access_key_id":
+			cfg.AWSAccessKeyID = value
+		case "aws_secret_access_key":
+			cfg.AWSSecretAccessKey = value
+		case "aws_region":
+			cfg.AWSRegion = value
+		case "aws_profile":
+			cfg.AWSProfile = value
+		case "aws_bedrock_api_key":
+			cfg.AWSBedrockAPIKey = value
 		case "default_api":
 			cfg.DefaultAPI = value
 		case "default_model":
@@ -193,6 +227,21 @@ func SaveConfig(cfg *Config) error {
 	if cfg.VertexCredentialsPath != "" {
 		content.WriteString(fmt.Sprintf("**vertex_credentials_path**: %s\n", cfg.VertexCredentialsPath))
 	}
+	if cfg.AWSAccessKeyID != "" {
+		content.WriteString(fmt.Sprintf("**aws_access_key_id**: %s\n", cfg.AWSAccessKeyID))
+	}
+	if cfg.AWSSecretAccessKey != "" {
+		content.WriteString(fmt.Sprintf("**aws_secret_access_key**: %s\n", cfg.AWSSecretAccessKey))
+	}
+	if cfg.AWSRegion != "" {
+		content.WriteString(fmt.Sprintf("**aws_region**: %s\n", cfg.AWSRegion))
+	}
+	if cfg.AWSProfile != "" {
+		content.WriteString(fmt.Sprintf("**aws_profile**: %s\n", cfg.AWSProfile))
+	}
+	if cfg.AWSBedrockAPIKey != "" {
+		content.WriteString(fmt.Sprintf("**aws_bedrock_api_key**: %s\n", cfg.AWSBedrockAPIKey))
+	}
 	if cfg.DefaultAPI != "" {
 		content.WriteString(fmt.Sprintf("**default_api**: %s\n", cfg.DefaultAPI))
 	}
@@ -244,11 +293,12 @@ func ValidateConfig(cfg *Config) error {
 	// Validate default_api if set
 	if cfg.DefaultAPI != "" {
 		validAPIs := map[string]bool{
-			"gemini": true,
-			"vertex": true,
+			"gemini":  true,
+			"vertex":  true,
+			"bedrock": true,
 		}
 		if !validAPIs[cfg.DefaultAPI] {
-			return fmt.Errorf("default_api must be either 'gemini' or 'vertex', got: %s", cfg.DefaultAPI)
+			return fmt.Errorf("default_api must be either 'gemini', 'vertex', or 'bedrock', got: %s", cfg.DefaultAPI)
 		}
 	}
 

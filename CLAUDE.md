@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is `gimage` - a Go-based CLI tool for AI-powered image generation and processing.
 
 **Core Capabilities**:
-- Generate images from text using Google Gemini 2.5 Flash Image or Vertex AI Imagen 4
+- Generate images from text using Google Gemini 2.5 Flash Image, Vertex AI Imagen 4, or AWS Bedrock Nova Canvas
 - Process images: resize, scale, crop, compress (PNG, JPG, WebP, GIF, TIFF, BMP)
 - Batch processing with concurrent operations
 - MCP server for Claude integration
@@ -16,7 +16,7 @@ This is `gimage` - a Go-based CLI tool for AI-powered image generation and proce
 - Go 1.22+ (pure Go, zero C dependencies)
 - Image processing: `github.com/disintegration/imaging`
 - CLI framework: Cobra + Viper
-- APIs: Gemini API and Vertex AI
+- APIs: Gemini API, Vertex AI, and AWS Bedrock
 
 ## Build Commands
 
@@ -53,7 +53,7 @@ gimage/
 ├── cmd/gimage/              # CLI entrypoint
 ├── internal/
 │   ├── imaging/             # Image processing (resize, scale, crop, compress)
-│   ├── generate/            # AI image generation (Gemini & Vertex clients)
+│   ├── generate/            # AI image generation (Gemini, Vertex, Bedrock clients)
 │   ├── config/              # Configuration & authentication
 │   ├── cli/                 # CLI commands
 │   └── mcp/                 # MCP server implementation
@@ -81,7 +81,7 @@ This project uses **pure Go with zero C dependencies** for maximum portability:
 
 ### Configuration Hierarchy (Priority Order)
 1. Command-line flags (highest priority)
-2. Environment variables (`GEMINI_API_KEY`, `VERTEX_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`)
+2. Environment variables (`GEMINI_API_KEY`, `VERTEX_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`)
 3. Config file (`~/.gimage/config.md`)
 4. Default values (lowest priority)
 
@@ -136,7 +136,8 @@ Image Generation Backends:
 ├── Gemini API (REST)        -> generate.NewGeminiRESTClient(apiKey)
 ├── Vertex AI (Express Mode) -> generate.NewVertexRESTClient(apiKey, project, location)  [REST]
 ├── Vertex AI (Full Mode)    -> generate.NewVertexSDKClient(ctx, project, location)      [SDK]
-└── Future: Bedrock, Nova, etc.
+├── AWS Bedrock (REST)       -> generate.NewBedrockRESTClient(region, accessKey, secretKey)  [REST]
+└── AWS Bedrock (SDK)        -> generate.NewBedrockSDKClient(ctx, region)                     [SDK]
 ```
 
 **Common Client Interface Pattern:**
@@ -147,11 +148,17 @@ Close() error  // Cleanup resources
 ```
 
 ### Backend Selection Logic (Priority Order)
-1. **Explicit flag**: `--api gemini` or `--api vertex`
-2. **Auto-detect from model**: Model name implies backend (e.g., "imagen-4" → vertex)
-3. **Auto-detect from credentials**: Check which API keys are configured
+
+**The `--api` flag is optional and usually unnecessary.** The system auto-detects the backend from the model name.
+
+1. **Auto-detect from model** (most common): Model name implies backend
+   - `--model imagen-4` → vertex
+   - `--model nova-canvas` → bedrock
+   - `--model gemini-2.5-flash-image` → gemini
+2. **Explicit flag** (override): `--api gemini`, `--api vertex`, or `--api bedrock`
+3. **Auto-detect from credentials**: If no model specified, check which API keys are configured
 4. **Config default**: Use `default_api` from `~/.gimage/config.md`
-5. **Fallback**: Default to Gemini if both are available
+5. **Fallback**: Default to Gemini if multiple backends are available
 
 ### Gemini API Backend
 
@@ -244,22 +251,116 @@ defer client.Close()
 img, err := client.GenerateImage(ctx, prompt, options)
 ```
 
-### Future Backends
+### AWS Bedrock Backend
 
-When adding new backends (Bedrock, Nova, etc.):
+**Two Implementation Modes**:
+1. **REST Mode** - Direct REST API with access keys (simpler, explicit credentials)
+2. **SDK Mode** - AWS SDK with credential chain (production-grade, supports IAM roles)
 
-1. **Create new client file**: `internal/generate/bedrock_sdk.go` or `bedrock_rest.go`
+**Setup**:
+```bash
+gimage auth bedrock  # Interactive wizard offers both modes
+```
+
+**Models**:
+- `amazon.nova-canvas-v1:0` (Nova Canvas, latest, up to 1408x1408)
+
+**Features**:
+- Text-to-image generation with quality presets (standard, premium)
+- Advanced controls: negative prompts, CFG scale, seed
+- Multiple sizes: 1024x1024, 1280x720, 720x1280, 768x1152, 1152x768, 1408x1408, 1173x640, 640x1173
+- Quality presets: standard (50 steps, $0.04/image) or premium (100 steps, $0.08/image)
+
+#### REST Mode
+
+**Implementation**: `bedrock_rest.go`
+
+**Authentication**:
+- AWS access key/secret via `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+- Region via `AWS_REGION` env var or config
+
+**Usage**:
+```go
+region := os.Getenv("AWS_REGION") // or from config, default "us-east-1"
+accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
+client, err := generate.NewBedrockRESTClient(region, accessKey, secretKey)
+defer client.Close()
+
+options := models.GenerateOptions{
+    Model: "amazon.nova-canvas-v1:0",
+    Size: "1024x1024",
+    Quality: "premium",  // or "standard"
+    Seed: 42,
+    CFGScale: 8.0,
+    NegativePrompt: "blurry, low quality",
+}
+img, err := client.GenerateImage(ctx, prompt, options)
+```
+
+#### SDK Mode
+
+**Implementation**: `bedrock_sdk.go`
+
+**Authentication Options**:
+1. Environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
+2. AWS credentials file: `~/.aws/credentials`
+3. IAM role (for EC2/ECS/Lambda)
+4. AWS SSO
+
+**Usage**:
+```go
+region := os.Getenv("AWS_REGION") // default "us-east-1"
+
+client, err := generate.NewBedrockSDKClient(ctx, region)
+defer client.Close()
+
+img, err := client.GenerateImage(ctx, prompt, options)
+```
+
+**IAM Permissions Required**:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel"
+      ],
+      "Resource": "arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0"
+    }
+  ]
+}
+```
+
+**Pricing**:
+- Standard quality (50 steps): $0.04 per image
+- Premium quality (100 steps): $0.08 per image
+
+**Regional Availability**:
+- us-east-1 (N. Virginia) - Recommended
+- us-west-2 (Oregon)
+- Check AWS Bedrock console for latest regions
+
+### Adding New Backends
+
+When adding new image generation backends (e.g., Anthropic Claude, Stability AI, etc.):
+
+1. **Create new client file**: `internal/generate/newbackend_sdk.go` or `newbackend_rest.go`
 2. **Implement common interface**:
    ```go
-   func NewBedrockClient(ctx, cfg) (*BedrockClient, error)
-   func (c *BedrockClient) GenerateImage(ctx, prompt, options) (*GeneratedImage, error)
-   func (c *BedrockClient) Close() error
+   func NewBackendClient(ctx, cfg) (*BackendClient, error)
+   func (c *BackendClient) GenerateImage(ctx, prompt, options) (*GeneratedImage, error)
+   func (c *BackendClient) Close() error
    ```
 3. **Add to model detection**: Update `generate.DetectAPIFromModel()`
-4. **Add auth setup**: Create `gimage auth bedrock` command
-5. **Update docs**: Add to this section and MCP_TOOLS.md
-6. **Add tests**: Create `bedrock_test.go` for unit tests (request building, response parsing, validation)
-7. **Integration tests**: Add `bedrock_integration_test.go` with real API calls (manual only)
+4. **Add auth setup**: Create `gimage auth newbackend` command in `internal/cli/auth.go`
+5. **Update docs**: Add to this section in CLAUDE.md and examples in MCP_TOOLS.md
+6. **Add tests**: Create `newbackend_test.go` for unit tests (request building, response parsing, validation)
+7. **Integration tests**: Add `newbackend_integration_test.go` with real API calls (manual only)
+8. **Update config**: Add new config keys to `internal/config/config.go` and `internal/config/auth.go`
 
 ### Testing Strategy for Multi-Backend
 
@@ -369,8 +470,13 @@ All backends read from `~/.gimage/config.md`:
 **vertex_location**: us-central1
 **vertex_credentials_path**: ~/.gimage/credentials/sa.json  # For Full Mode
 
+# AWS Bedrock Configuration
+**aws_access_key_id**: AKIA...         # For REST Mode
+**aws_secret_access_key**: wJalr...    # For REST Mode
+**aws_region**: us-east-1              # For both modes
+
 # Default Backend
-**default_api**: gemini  # or "vertex"
+**default_api**: gemini  # or "vertex" or "bedrock"
 ```
 
 ### Retry Logic (All Backends)
@@ -410,6 +516,9 @@ gimage auth gemini
 
 # Setup Vertex AI (3 modes: Express API key, Service Account, or ADC)
 gimage auth vertex
+
+# Setup AWS Bedrock (2 modes: REST with access keys, or SDK with credential chain)
+gimage auth bedrock
 ```
 
 These commands create/update `~/.gimage/config.md` with your credentials.
@@ -425,6 +534,9 @@ Config file uses **markdown format** (not YAML/JSON) at `~/.gimage/config.md`:
 **vertex_project**: your-project-id
 **vertex_location**: us-central1
 **vertex_credentials_path**: ~/.gimage/credentials/service-account.json
+**aws_access_key_id**: AKIA...
+**aws_secret_access_key**: wJalr...
+**aws_region**: us-east-1
 **default_api**: gemini
 **default_model**: gemini-2.5-flash-image
 **default_size**: 1024x1024

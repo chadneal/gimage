@@ -13,9 +13,9 @@ Production-ready serverless API for web applications and remote processing.
 ## What Can You Do with Gimage?
 
 ### 🎨 AI Image Generation
-- Generate stunning images from text prompts using Google Gemini or Vertex AI
-- Multiple AI models: Gemini 2.5 Flash, Imagen 3, Imagen 4
-- Control size, style, and use negative prompts
+- Generate stunning images from text prompts using Google Gemini, Vertex AI, or AWS Bedrock
+- Multiple AI models: Gemini 2.5 Flash, Imagen 3, Imagen 4, Nova Canvas
+- Control size, style, quality, and use negative prompts
 - Reproducible results with seed values
 
 ### 🛠️ Image Processing
@@ -90,6 +90,14 @@ Choose from:
 2. **Service Account** - JSON credentials (best for production)
 3. **Application Default Credentials** - Use your gcloud login
 
+#### For AWS Bedrock (2 Options)
+```bash
+gimage auth bedrock
+```
+Choose from:
+1. **REST Mode** - AWS access keys (explicit credentials)
+2. **SDK Mode** - AWS credential chain (supports IAM roles)
+
 ### 3. Generate Your First Image
 
 ```bash
@@ -109,14 +117,20 @@ gimage generate "futuristic city at night"
 # Specify size and style
 gimage generate "abstract art" --size 1024x1024 --style photorealistic
 
-# Use Vertex AI Imagen
-gimage generate "beautiful landscape" --api vertex --model imagen-4
+# Use Vertex AI Imagen (auto-detects vertex API)
+gimage generate "beautiful landscape" --model imagen-4
+
+# Use AWS Bedrock Nova Canvas with premium quality (auto-detects bedrock API)
+gimage generate "futuristic robot" --model nova-canvas --quality premium
 
 # Use negative prompts to avoid unwanted elements
 gimage generate "forest scene" --negative "people, buildings"
 
 # Reproducible results with seed
 gimage generate "random pattern" --seed 12345
+
+# Control creativity with CFG scale (Nova Canvas)
+gimage generate "abstract art" --model nova-canvas --cfg-scale 10
 
 # List all available models
 gimage generate --list-models
@@ -170,6 +184,9 @@ Gimage stores settings in `~/.gimage/config.md` (created automatically by `gimag
 **vertex_api_key**: your-vertex-key
 **vertex_project**: your-gcp-project
 **vertex_location**: us-central1
+**aws_access_key_id**: AKIA...
+**aws_secret_access_key**: wJalr...
+**aws_region**: us-east-1
 **default_api**: gemini
 **default_model**: gemini-2.5-flash-image
 **default_size**: 1024x1024
@@ -178,7 +195,7 @@ Gimage stores settings in `~/.gimage/config.md` (created automatically by `gimag
 
 ### Priority Order
 1. **Command-line flags** (highest)
-2. **Environment variables** (`GEMINI_API_KEY`, `VERTEX_API_KEY`, etc.)
+2. **Environment variables** (`GEMINI_API_KEY`, `VERTEX_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.)
 3. **Config file** (`~/.gimage/config.md`)
 4. **Default values** (lowest)
 
@@ -190,6 +207,9 @@ export VERTEX_API_KEY="your-key"           # Vertex AI Express Mode key
 export VERTEX_PROJECT="your-project"       # Vertex AI project ID
 export VERTEX_LOCATION="us-central1"       # Vertex AI location
 export GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account.json"
+export AWS_ACCESS_KEY_ID="AKIA..."        # AWS Bedrock access key
+export AWS_SECRET_ACCESS_KEY="wJalr..."   # AWS Bedrock secret key
+export AWS_REGION="us-east-1"              # AWS region
 ```
 
 ## Available Models
@@ -200,7 +220,12 @@ export GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account.json"
 
 ### Vertex AI
 - `imagen-3.0-generate-002` (latest Imagen 3)
-- `imagen-4` (newest, highest quality)
+- `imagen-4` (newest, highest quality, up to 2048x2048)
+
+### AWS Bedrock
+- `amazon.nova-canvas-v1:0` (Nova Canvas, up to 1408x1408)
+  - Standard quality: 50 steps, $0.04/image
+  - Premium quality: 100 steps, $0.08/image
 
 Run `gimage generate --list-models` to see all available models.
 
@@ -338,11 +363,14 @@ gimage auth gemini
 
 # OR for Vertex AI
 gimage auth vertex
+
+# OR for AWS Bedrock
+gimage auth bedrock
 ```
 
 The MCP server will automatically use credentials from:
 - `~/.gimage/config.md` (created by auth commands)
-- Environment variables (`GEMINI_API_KEY`, `VERTEX_API_KEY`, etc.)
+- Environment variables (`GEMINI_API_KEY`, `VERTEX_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.)
 
 ### Start Using with Claude
 
@@ -418,6 +446,9 @@ export VERTEX_API_KEY="your-vertex-key"          # Vertex AI Express Mode
 export VERTEX_PROJECT="your-gcp-project"         # Vertex AI project
 export VERTEX_LOCATION="us-central1"             # Vertex AI location
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+export AWS_ACCESS_KEY_ID="AKIA..."               # AWS Bedrock
+export AWS_SECRET_ACCESS_KEY="wJalr..."          # AWS Bedrock
+export AWS_REGION="us-east-1"                     # AWS region
 ```
 
 ### MCP Documentation
@@ -625,6 +656,7 @@ Built with:
 - [Imaging](https://github.com/disintegration/imaging) - Image processing
 - [Google Gen AI SDK](https://github.com/googleapis/go-genai) - Gemini API
 - [Vertex AI SDK](https://cloud.google.com/go/vertexai) - Vertex AI
+- [AWS SDK for Go](https://github.com/aws/aws-sdk-go-v2) - AWS Bedrock
 
 ---
 

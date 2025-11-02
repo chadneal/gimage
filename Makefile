@@ -29,25 +29,45 @@ all: build
 
 ## help: Display this help message
 help:
-	@echo "Available targets:"
-	@echo "  build            - Build the binary for current platform"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  Gimage - AI Image Generation CLI & MCP"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "🔨 Build Commands:"
+	@echo "  build            - Build binary for current platform"
 	@echo "  build-all        - Build binaries for all platforms"
+	@echo "  install          - Install binary to $(INSTALL_DIR)"
+	@echo "  clean            - Remove build artifacts"
+	@echo ""
+	@echo "🧪 Test Commands:"
+	@echo "  test             - Run ALL tests (unit + E2E) with coverage"
+	@echo "  test-unit        - Run unit tests only (fast)"
+	@echo "  test-e2e         - Run all E2E tests (CLI + Generate)"
+	@echo "  test-cli-e2e     - Run CLI E2E tests only (FREE)"
+	@echo "  test-generate-e2e- Run Generate Image E2E tests (costs \$$)"
+	@echo "  test-coverage    - Generate coverage report from coverage.out"
+	@echo ""
+	@echo "☁️  Lambda Commands:"
 	@echo "  build-lambda     - Build Lambda function for AWS ARM64"
 	@echo "  package-lambda   - Package Lambda function for deployment"
 	@echo "  deploy-lambda    - Deploy Lambda function using CDK"
-	@echo "  test             - Run tests"
-	@echo "  test-coverage    - Run tests with coverage report"
-	@echo "  install          - Install binary to $(INSTALL_DIR)"
-	@echo "  clean            - Remove build artifacts"
 	@echo "  clean-lambda     - Remove Lambda build artifacts"
-	@echo "  info             - Display version and release notes"
+	@echo "  lambda-logs      - Tail Lambda function logs"
+	@echo ""
+	@echo "📦 Release Commands:"
 	@echo "  version          - Display current version"
 	@echo "  sync-version     - Sync version to package.json"
-	@echo "  update-changelog - Update CHANGELOG.md with new version"
-	@echo "  release          - Create and publish a new release"
+	@echo "  update-changelog - Update CHANGELOG.md"
+	@echo "  release          - Create and publish new release"
+	@echo "  info             - Display version and release notes"
+	@echo ""
+	@echo "🔍 Quality Commands:"
 	@echo "  lint             - Run linter"
 	@echo "  benchmark        - Run benchmarks"
-	@echo "  lambda-logs      - Tail Lambda function logs"
+	@echo ""
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "💡 Quick Start: make test"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 ## build: Build the binary for current platform
 build:
@@ -78,17 +98,112 @@ build-all:
 	@chmod +x $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe
 	@echo "All platform binaries built in $(BUILD_DIR)/"
 
-## test: Run tests
-test:
-	@echo "Running tests..."
-	$(GOTEST) -v -race ./...
+## test: Run all tests (unit + E2E) and generate coverage report
+test: build
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "                        🧪 GIMAGE COMPLETE TEST SUITE"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "Running unit tests with coverage..."
+	@$(GOTEST) -v -race -coverprofile=coverage.out -covermode=atomic ./... > /tmp/gimage-unit-tests.log 2>&1 || true
+	@echo "Running CLI E2E tests (free)..."
+	@$(GOTEST) -v -tags=e2e ./test/integration/cli_e2e_test.go > /tmp/gimage-cli-e2e-tests.log 2>&1 || true
+	@echo "Running Generate Image E2E tests (costs money)..."
+	@$(GOTEST) -v -tags=e2e ./test/integration/generate_e2e_test.go > /tmp/gimage-generate-e2e-tests.log 2>&1 || true
+	@echo ""
+	@go run cmd/test-summary/main.go /tmp/gimage-unit-tests.log /tmp/gimage-cli-e2e-tests.log /tmp/gimage-generate-e2e-tests.log || TEST_FAILED=1
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "                              📈 COVERAGE REPORT"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "Generating coverage reports..."
+	@$(GOCMD) tool cover -html=coverage.out -o coverage.html 2>/dev/null
+	@go run cmd/coverage-report/main.go coverage.out 2>/dev/null
+	@echo ""
+	@echo "Core Packages (Unit Test Coverage):"
+	@go tool cover -func=coverage.out | grep "internal/imaging\|internal/generate\|internal/mcp" | grep -v "total:" | awk 'BEGIN{sum=0;count=0}{gsub("%","",$$NF);sum+=$$NF;count++}END{if(count>0)printf "  %.1f%% average coverage (%d files)\n", sum/count, count}'
+	@echo ""
+	@go run cmd/test-summary/main.go --cli-coverage /tmp/gimage-cli-e2e-tests.log
+	@echo ""
+	@echo "HTML Reports Generated:"
+	@echo "  • coverage-report.html  (readable summary - OPEN THIS FIRST)"
+	@echo "  • coverage.html         (detailed line-by-line)"
+	@echo ""
+	@if [ "$$TEST_FAILED" = "1" ]; then \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo "                              ❌ SOME TESTS FAILED"; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo ""; \
+		echo "📋 Check test logs:"; \
+		echo "   cat /tmp/gimage-unit-tests.log"; \
+		echo "   cat /tmp/gimage-cli-e2e-tests.log"; \
+		echo "   cat /tmp/gimage-generate-e2e-tests.log"; \
+		echo ""; \
+		exit 1; \
+	else \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo "                              ✅ ALL TESTS PASSED"; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo ""; \
+		echo "🔗 View detailed coverage report:"; \
+		echo "   open coverage-report.html"; \
+		echo ""; \
+	fi
 
-## test-coverage: Run tests with coverage report
+## test-unit: Run unit tests only (no E2E)
+test-unit:
+	@echo "Running unit tests..."
+	@$(GOTEST) -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	@echo ""
+	@echo "✓ Unit tests complete"
+	@go tool cover -func=coverage.out | grep "total:"
+
+## test-e2e: Run all E2E tests (CLI + Generate Image)
+test-e2e: test-cli-e2e test-generate-e2e
+
+## test-cli-e2e: Run CLI E2E tests (free, no API calls)
+test-cli-e2e: build
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "Running CLI E2E tests (resize, scale, crop)..."
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@$(GOTEST) -v -tags=e2e ./test/integration/cli_e2e_test.go
+	@echo ""
+	@echo "✓ CLI E2E tests complete (FREE - no API costs)"
+
+## test-generate-e2e: Run Generate Image E2E tests (costs money!)
+test-generate-e2e:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "⚠️  WARNING: E2E tests will make real API calls!"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "   - Gemini: Uses free tier quota (FREE)"
+	@echo "   - Vertex: ~\$$0.02 per test"
+	@echo "   - Bedrock: ~\$$0.04 per test"
+	@echo ""
+	@read -p "Continue? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		echo ""; \
+		echo "Running Generate Image E2E tests..."; \
+		$(GOTEST) -v -tags=e2e ./test/integration/generate_e2e_test.go; \
+		echo ""; \
+		echo "✓ Generate Image E2E tests complete"; \
+	else \
+		echo "E2E tests cancelled"; \
+	fi
+
+## test-coverage: Generate coverage report from existing coverage.out
 test-coverage:
-	@echo "Running tests with coverage..."
-	$(GOTEST) -v -race -coverprofile=coverage.out -covermode=atomic ./...
-	$(GOCMD) tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+	@if [ ! -f coverage.out ]; then \
+		echo "Error: coverage.out not found. Run 'make test' or 'make test-unit' first."; \
+		exit 1; \
+	fi
+	@echo "Generating coverage reports..."
+	@$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@go run cmd/coverage-report/main.go coverage.out
+	@echo ""
+	@echo "✓ Coverage reports generated:"
+	@echo "  • coverage-report.html (readable summary)"
+	@echo "  • coverage.html (detailed line-by-line)"
 
 ## install: Install binary to /usr/local/bin
 install: build
@@ -125,7 +240,7 @@ clean:
 	@echo "Cleaning..."
 	$(GOCLEAN)
 	rm -rf $(BUILD_DIR)
-	rm -f coverage.out coverage.html
+	rm -f coverage.out coverage.html coverage-report.html
 	@echo "Clean complete"
 
 ## lint: Run linter

@@ -19,6 +19,9 @@ const (
 	ModelImagen4UltraGenerate = "imagen-4.0-ultra-generate-001" // Imagen 4 Ultra (AI Studio)
 	ModelImagen4FastGenerate  = "imagen-4.0-fast-generate-001"  // Imagen 4 Fast (AI Studio)
 
+	// AWS Bedrock models (Paid, high quality)
+	ModelNovaCanvas = "amazon.nova-canvas-v1:0" // AWS Nova Canvas
+
 	// Default model
 	DefaultModel = ModelGemini25FlashImage
 )
@@ -37,6 +40,7 @@ var ModelAliases = map[string]string{
 	"imagen-4-fast":                     "imagen-4.0-fast-generate-001",
 	"gemini-2.5-flash":                  "gemini-2.5-flash-image",
 	"gemini-2.0-flash":                  "gemini-2.0-flash-preview-image-generation",
+	"nova-canvas":                       "amazon.nova-canvas-v1:0",
 }
 
 // RateLimits defines usage quotas
@@ -361,6 +365,50 @@ func AvailableModels() []ModelInfo {
 				MaxPromptLength:        480,
 			},
 		},
+
+		{
+			Name:        ModelNovaCanvas,
+			DisplayName: "AWS Nova Canvas",
+			API:         "bedrock",
+			Quality:     "premium",
+			Description: "AWS Bedrock Nova Canvas, high quality image generation",
+			Priority:    7, // After all current models
+			RequiresAuth: []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY or AWS_PROFILE"},
+			MaxSize:      "2048x2048",
+			Free:         false,
+
+			Pricing: PricingInfo{
+				CostPerImage:       float64Ptr(0.04), // $0.04 per standard image
+				CostPerImageHD:     float64Ptr(0.08), // $0.08 per premium image
+				BatchModeAvailable: false,
+				FreeTier:           false,
+				MaxResolution:      "2048x2048",
+				SupportedSizes:     []string{"512x512", "768x768", "1024x1024", "1280x1280", "1536x1536", "2048x2048"},
+				ResolutionPricing: map[string]float64{
+					"512x512":   0.04,
+					"768x768":   0.04,
+					"1024x1024": 0.04,
+					"1280x1280": 0.04,
+					"1536x1536": 0.04,
+					"2048x2048": 0.04, // Same price for all resolutions (standard quality)
+				},
+				RateLimits: RateLimits{
+					RequestsPerMinute: intPtr(10), // 10 requests per second
+				},
+				BillingUnit: "per_image",
+				Currency:    "USD",
+				PricingTier: "standard",
+				LastUpdated: "2025-11-02",
+			},
+
+			Capabilities: ModelCapabilities{
+				SupportsStyles:         false, // Nova Canvas doesn't have style presets
+				SupportsNegativePrompt: true,
+				SupportsSeed:           true,
+				SupportedStyles:        []string{}, // No predefined styles
+				MaxPromptLength:        512,        // Max prompt length in characters
+			},
+		},
 	}
 }
 
@@ -429,6 +477,31 @@ func GetModelInfoForAPI(modelName, api string) (*ModelInfo, error) {
 	return modelInfo, nil
 }
 
+// GetPreferredAlias returns the shortest/most user-friendly alias for a model
+// Returns empty string if no alias exists
+func GetPreferredAlias(fullModelName string) string {
+	// Find all aliases that map to this model
+	var aliases []string
+	for alias, target := range ModelAliases {
+		if target == fullModelName {
+			aliases = append(aliases, alias)
+		}
+	}
+
+	if len(aliases) == 0 {
+		return "" // No alias found
+	}
+
+	// Return the shortest alias (most user-friendly)
+	shortest := aliases[0]
+	for _, alias := range aliases {
+		if len(alias) < len(shortest) {
+			shortest = alias
+		}
+	}
+	return shortest
+}
+
 // ListModelsByAPI returns models filtered by API type
 func ListModelsByAPI(api string) []ModelInfo {
 	models := AvailableModels()
@@ -470,9 +543,10 @@ func ValidateModelForAPI(modelName, api string) error {
 func SelectBestAvailableModel(preferredAPI string) (*ModelInfo, error) {
 	hasGemini := config.HasGeminiCredentials()
 	hasVertex := config.HasVertexCredentials()
+	hasBedrock := config.HasBedrockCredentials()
 
-	if !hasGemini && !hasVertex {
-		return nil, fmt.Errorf("no API credentials configured. Run 'gimage auth gemini' or 'gimage auth vertex'")
+	if !hasGemini && !hasVertex && !hasBedrock {
+		return nil, fmt.Errorf("no API credentials configured. Run 'gimage auth gemini', 'gimage auth vertex', or 'gimage auth bedrock'")
 	}
 
 	// Get all models and sort by priority
@@ -495,6 +569,9 @@ func SelectBestAvailableModel(preferredAPI string) (*ModelInfo, error) {
 			return model, nil
 		}
 		if model.API == "vertex" && hasVertex {
+			return model, nil
+		}
+		if model.API == "bedrock" && hasBedrock {
 			return model, nil
 		}
 	}
