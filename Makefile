@@ -1,4 +1,4 @@
-.PHONY: build build-all test test-coverage install clean lint benchmark info help build-lambda package-lambda deploy-lambda clean-lambda lambda-logs release
+.PHONY: build build-all test test-coverage install clean lint benchmark info help build-lambda package-lambda deploy-lambda clean-lambda lambda-logs release update-changelog sync-version version
 
 # Binary name
 BINARY_NAME=gimage
@@ -30,23 +30,24 @@ all: build
 ## help: Display this help message
 help:
 	@echo "Available targets:"
-	@echo "  build           - Build the binary for current platform"
-	@echo "  build-all       - Build binaries for all platforms"
-	@echo "  build-lambda    - Build Lambda function for AWS ARM64"
-	@echo "  package-lambda  - Package Lambda function for deployment"
-	@echo "  deploy-lambda   - Deploy Lambda function using CDK"
-	@echo "  test            - Run tests"
-	@echo "  test-coverage   - Run tests with coverage report"
-	@echo "  install         - Install binary to $(INSTALL_DIR)"
-	@echo "  clean           - Remove build artifacts"
-	@echo "  clean-lambda    - Remove Lambda build artifacts"
-	@echo "  info            - Display version and release notes"
-	@echo "  version         - Display current version"
-	@echo "  sync-version    - Sync version to package.json"
-	@echo "  release         - Create and publish a new release"
-	@echo "  lint            - Run linter"
-	@echo "  benchmark       - Run benchmarks"
-	@echo "  lambda-logs     - Tail Lambda function logs"
+	@echo "  build            - Build the binary for current platform"
+	@echo "  build-all        - Build binaries for all platforms"
+	@echo "  build-lambda     - Build Lambda function for AWS ARM64"
+	@echo "  package-lambda   - Package Lambda function for deployment"
+	@echo "  deploy-lambda    - Deploy Lambda function using CDK"
+	@echo "  test             - Run tests"
+	@echo "  test-coverage    - Run tests with coverage report"
+	@echo "  install          - Install binary to $(INSTALL_DIR)"
+	@echo "  clean            - Remove build artifacts"
+	@echo "  clean-lambda     - Remove Lambda build artifacts"
+	@echo "  info             - Display version and release notes"
+	@echo "  version          - Display current version"
+	@echo "  sync-version     - Sync version to package.json"
+	@echo "  update-changelog - Update CHANGELOG.md with new version"
+	@echo "  release          - Create and publish a new release"
+	@echo "  lint             - Run linter"
+	@echo "  benchmark        - Run benchmarks"
+	@echo "  lambda-logs      - Tail Lambda function logs"
 
 ## build: Build the binary for current platform
 build:
@@ -234,32 +235,44 @@ sync-version:
 	fi
 	@echo "CLI and MCP versions are now in sync: $(VERSION)"
 
+## update-changelog: Update CHANGELOG.md with new version
+update-changelog:
+	@echo "Updating CHANGELOG.md with version $(VERSION)..."
+	@if [ ! -f scripts/update-changelog.sh ]; then \
+		echo "✗ scripts/update-changelog.sh not found"; \
+		exit 1; \
+	fi
+	@bash scripts/update-changelog.sh $(VERSION)
+
 ## release: Create and publish a new release
 release:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "  Creating Release v$(VERSION)"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
-	@echo "Step 1: Syncing version to package.json files..."
+	@echo "Step 1: Updating CHANGELOG.md..."
+	@$(MAKE) update-changelog
+	@echo ""
+	@echo "Step 2: Syncing version to package.json files..."
 	@$(MAKE) sync-version
 	@echo ""
-	@echo "Step 2: Checking for uncommitted changes..."
+	@echo "Step 3: Checking for uncommitted changes..."
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "✓ Found changes, committing..."; \
-		git add package.json npm/package.json; \
-		git commit -m "Sync version to $(VERSION)"; \
+		git add CHANGELOG.md package.json npm/package.json; \
+		git commit -m "Release v$(VERSION)"; \
 		git push origin main; \
 		echo "✓ Changes committed and pushed"; \
 	else \
 		echo "✓ No changes to commit"; \
 	fi
 	@echo ""
-	@echo "Step 3: Creating git tag v$(VERSION)..."
+	@echo "Step 4: Creating git tag v$(VERSION)..."
 	@git tag -a v$(VERSION) -m "Release v$(VERSION)" || (echo "✗ Tag already exists" && exit 1)
 	@git push origin v$(VERSION)
 	@echo "✓ Tag v$(VERSION) created and pushed"
 	@echo ""
-	@echo "Step 4: Building and publishing with GoReleaser..."
+	@echo "Step 5: Building and publishing with GoReleaser..."
 	@if [ -z "$$GITHUB_TOKEN" ]; then \
 		echo "Setting GITHUB_TOKEN from gh auth..."; \
 		export GITHUB_TOKEN=$$(gh auth token); \
@@ -271,7 +284,7 @@ release:
 	fi; \
 	GITHUB_TOKEN=$${GITHUB_TOKEN} HOMEBREW_TAP_TOKEN=$${HOMEBREW_TAP_TOKEN} goreleaser release --clean
 	@echo ""
-	@echo "Step 5: Publishing npm package..."
+	@echo "Step 6: Publishing npm package..."
 	@cd npm && npm publish --access public
 	@echo ""
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

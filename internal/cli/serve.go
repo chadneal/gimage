@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/generate"
 	"github.com/apresai/gimage/internal/mcp"
 	"github.com/apresai/gimage/internal/mcp/tools"
 	"github.com/spf13/cobra"
@@ -131,7 +132,58 @@ For more information: https://github.com/apresai/gimage`,
 			fmt.Fprintln(os.Stderr, "[gimage-mcp] Protocol: Model Context Protocol")
 			fmt.Fprintln(os.Stderr, "[gimage-mcp] Transport: stdio")
 			fmt.Fprintln(os.Stderr, "[gimage-mcp] Tools: 10 registered")
-			fmt.Fprintln(os.Stderr, "[gimage-mcp] Ready for requests")
+			fmt.Fprintln(os.Stderr, "")
+
+			// Show available models with pricing
+			fmt.Fprintln(os.Stderr, "[gimage-mcp] Discovering available models...")
+
+			hasGemini := config.HasGeminiCredentials()
+			hasVertex := config.HasVertexCredentials()
+
+			if !hasGemini && !hasVertex {
+				fmt.Fprintln(os.Stderr, "[gimage-mcp] ⚠️  No API credentials found")
+				fmt.Fprintln(os.Stderr, "[gimage-mcp]     Run: gimage auth gemini  (FREE tier, 500/day)")
+				fmt.Fprintln(os.Stderr, "[gimage-mcp]     Or:  gimage auth vertex  (Paid, higher quality)")
+			} else {
+				fmt.Fprintln(os.Stderr, "[gimage-mcp] 📊 Available Models:")
+				fmt.Fprintln(os.Stderr, "")
+
+				if hasGemini {
+					geminiModels := generate.ListModelsByAPI("gemini")
+					fmt.Fprintf(os.Stderr, "[gimage-mcp] ✓ Gemini API - %d models available\n", len(geminiModels))
+					for _, m := range geminiModels {
+						priority := ""
+						if m.Priority == 1 {
+							priority = " ⭐ DEFAULT"
+						}
+						pricingInfo := generate.FormatPricingDisplay(&m)
+						fmt.Fprintf(os.Stderr, "[gimage-mcp]   • %s - %s%s\n", m.DisplayName, pricingInfo, priority)
+					}
+					fmt.Fprintln(os.Stderr, "")
+				}
+
+				if hasVertex {
+					vertexModels := generate.ListModelsByAPI("vertex")
+					fmt.Fprintf(os.Stderr, "[gimage-mcp] ✓ Vertex AI - %d models available\n", len(vertexModels))
+					for _, m := range vertexModels {
+						pricingInfo := generate.FormatPricingDisplay(&m)
+						fmt.Fprintf(os.Stderr, "[gimage-mcp]   • %s - %s\n", m.DisplayName, pricingInfo)
+					}
+					fmt.Fprintln(os.Stderr, "")
+				}
+			}
+
+			// Show default model
+			defaultModel, err := generate.SelectBestAvailableModel("")
+			if err == nil {
+				fmt.Fprintf(os.Stderr, "[gimage-mcp] 🎯 Default Model: %s (priority %d)\n", defaultModel.DisplayName, defaultModel.Priority)
+				fmt.Fprintf(os.Stderr, "[gimage-mcp]    %s\n", generate.FormatPricingDisplay(defaultModel))
+			} else {
+				fmt.Fprintln(os.Stderr, "[gimage-mcp] ⚠️  No default model available - missing credentials")
+			}
+
+			fmt.Fprintln(os.Stderr, "")
+			fmt.Fprintln(os.Stderr, "[gimage-mcp] 🎧 Ready for requests...")
 		}
 
 		// Start server

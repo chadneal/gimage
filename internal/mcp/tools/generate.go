@@ -203,13 +203,58 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 				absOutput = output
 			}
 
-			result := map[string]interface{}{
-				"success":     true,
-				"output_path": absOutput,
-				"size":        size,
-				"model":       modelName,
-				"prompt":      prompt,
+			// Get model info for cost tracking and announcement
+			modelInfo, _ := generate.GetModelInfo(modelName)
+			var modelDisplayName string
+			var pricingInfo string
+			var estimatedCost float64
+			var tokensUsed int
+			var costExplanation string
+
+			if modelInfo != nil {
+				modelDisplayName = modelInfo.DisplayName
+				pricingInfo = generate.FormatPricingDisplay(modelInfo)
+				estimatedCost, tokensUsed, costExplanation = generate.GetEstimatedCost(modelInfo, size, 1)
+			} else {
+				modelDisplayName = modelName
+				pricingInfo = "Unknown"
 			}
+
+			// Build result with comprehensive information
+			result := map[string]interface{}{
+				"success":       true,
+				"output_path":   absOutput,
+				"size":          size,
+				"model":         modelName,
+				"model_display": modelDisplayName,
+				"api":           selectedAPI,
+				"pricing":       pricingInfo,
+				"prompt":        prompt,
+			}
+
+			// Add cost and token information
+			if tokensUsed > 0 {
+				result["tokens_used"] = tokensUsed
+			}
+			if estimatedCost > 0 {
+				result["estimated_cost"] = estimatedCost
+				result["cost_explanation"] = costExplanation
+			} else if modelInfo != nil && modelInfo.Pricing.FreeTier {
+				result["estimated_cost"] = 0
+				result["cost_explanation"] = "FREE (within daily limit)"
+			}
+
+			// Create user-friendly message
+			msg := fmt.Sprintf("Generated using %s (%s). ", modelDisplayName, pricingInfo)
+			if tokensUsed > 0 {
+				msg += fmt.Sprintf("Used ~%d tokens. ", tokensUsed)
+			}
+			if estimatedCost > 0 {
+				msg += fmt.Sprintf("Cost: $%.4f", estimatedCost)
+			} else if modelInfo != nil && modelInfo.Pricing.FreeTier {
+				msg += "Cost: FREE"
+			}
+			result["message"] = msg
 
 			// Add warning if we had to fall back to a different location
 			if pathWarning != "" {

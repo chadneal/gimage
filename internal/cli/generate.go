@@ -197,7 +197,25 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 			modelName = generate.DefaultModel
 		}
 
-		printInfo("Generating image using Gemini API (model: %s)...", modelName)
+		// Get model info and announce selection
+		modelInfo, _ := generate.GetModelInfo(modelName)
+		if modelInfo != nil {
+			printInfo("Using: %s (%s API)", modelInfo.DisplayName, modelInfo.API)
+			printInfo("Pricing: %s", generate.FormatPricingDisplay(modelInfo))
+
+			// Calculate estimated cost
+			cost, tokens, explanation := generate.GetEstimatedCost(modelInfo, size, 1)
+			if tokens > 0 {
+				printVerbose("Estimated: %s", explanation)
+			}
+
+			// Warn if expensive (cost > $0.05)
+			if cost > 0.05 {
+				fmt.Fprintf(os.Stderr, "⚠️  %s costs $%.4f/image\n", modelInfo.DisplayName, *modelInfo.Pricing.CostPerImage)
+			}
+		}
+
+		printInfo("Generating image...")
 
 		// Use REST client instead of SDK client
 		client, err := generate.NewGeminiRESTClient(key)
@@ -234,7 +252,27 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 			modelName = "imagen-4.0-generate-001" // Default Imagen model
 		}
 
-		printInfo("Generating image using Vertex AI Imagen (model: %s)...", modelName)
+		// Get model info and announce selection
+		modelInfo, _ := generate.GetModelInfo(modelName)
+		if modelInfo != nil {
+			printInfo("Using: %s (%s API)", modelInfo.DisplayName, modelInfo.API)
+			printInfo("Pricing: %s", generate.FormatPricingDisplay(modelInfo))
+
+			// Calculate estimated cost
+			cost, tokens, explanation := generate.GetEstimatedCost(modelInfo, size, 1)
+			if tokens > 0 {
+				printVerbose("Estimated: %s", explanation)
+			} else {
+				printVerbose("Estimated: %s", explanation)
+			}
+
+			// Warn if expensive (cost > $0.05)
+			if cost > 0.05 {
+				fmt.Fprintf(os.Stderr, "⚠️  %s costs $%.4f/image\n", modelInfo.DisplayName, *modelInfo.Pricing.CostPerImage)
+			}
+		}
+
+		printInfo("Generating image...")
 
 		// Choose client based on authentication mode
 		if vertexAPIKey != "" {
@@ -295,11 +333,33 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save image: %w", err)
 	}
 
-	// Print success
+	// Print success with cost tracking
 	printSuccess("Image generated successfully!")
 	printInfo("  File: %s", output)
 	printInfo("  Size: %s", formatImageSize(int64(len(generatedImage.Data))))
 	printInfo("  Dimensions: %dx%d", generatedImage.Width, generatedImage.Height)
+
+	// Log cost and token usage
+	modelNameUsed := model
+	if modelNameUsed == "" {
+		if selectedAPI == "gemini" {
+			modelNameUsed = generate.DefaultModel
+		} else {
+			modelNameUsed = "imagen-4.0-generate-001"
+		}
+	}
+
+	if modelInfo, err := generate.GetModelInfo(modelNameUsed); err == nil {
+		cost, tokens, _ := generate.GetEstimatedCost(modelInfo, size, 1)
+		if tokens > 0 {
+			printInfo("  Tokens used: ~%d tokens", tokens)
+		}
+		if cost > 0 {
+			printInfo("  Cost: $%.4f", cost)
+		} else if modelInfo.Pricing.FreeTier {
+			printInfo("  Cost: FREE (within daily limit)")
+		}
+	}
 
 	return nil
 }
@@ -314,33 +374,52 @@ func printAvailableModels() error {
 
 	// Print Gemini models
 	printSuccess("Gemini API (Free Tier Available):")
+	printInfo("  %-40s %-30s %-10s %s", "Model Name", "Display Name", "Priority", "Pricing")
+	printInfo("  %s", strings.Repeat("-", 100))
 	for _, m := range geminiModels {
-		defaultMarker := ""
+		pricing := generate.FormatPricingDisplay(&m)
+		priorityMark := fmt.Sprintf("%d", m.Priority)
 		if m.Name == generate.DefaultModel {
-			defaultMarker = " (Default)"
+			priorityMark = fmt.Sprintf("%d ⭐", m.Priority)
 		}
-		printInfo("  %-35s %s%s", m.Name, m.DisplayName, defaultMarker)
-		printVerbose("                                      %s, up to %s", m.Description, m.MaxSize)
-		fmt.Println()
+		printInfo("  %-40s %-30s %-10s %s", m.Name, m.DisplayName, priorityMark, pricing)
+		if viper.GetBool("verbose") {
+			printVerbose("      %s", m.Description)
+			if m.Pricing.TokensPerImage != nil {
+				printVerbose("      Tokens per image: ~%d", *m.Pricing.TokensPerImage)
+			}
+		}
 	}
 
 	// Print Vertex models
 	printSuccess("\nVertex AI (Paid - Requires GCP):")
+	printInfo("  %-40s %-30s %-10s %s", "Model Name", "Display Name", "Priority", "Pricing")
+	printInfo("  %s", strings.Repeat("-", 100))
 	for _, m := range vertexModels {
-		premiumMarker := ""
+		pricing := generate.FormatPricingDisplay(&m)
+		priorityMark := fmt.Sprintf("%d", m.Priority)
 		if m.Quality == "premium" {
-			premiumMarker = " ★ Premium"
+			priorityMark = fmt.Sprintf("%d ★", m.Priority)
 		}
-		printInfo("  %-35s %s%s", m.Name, m.DisplayName, premiumMarker)
-		printVerbose("                                      %s, up to %s", m.Description, m.MaxSize)
-		fmt.Println()
+		printInfo("  %-40s %-30s %-10s %s", m.Name, m.DisplayName, priorityMark, pricing)
+		if viper.GetBool("verbose") {
+			printVerbose("      %s", m.Description)
+		}
 	}
+
+	printInfo("\nPriority Guide:")
+	printInfo("  Lower number = higher priority (auto-selected when no model specified)")
+	printInfo("  ⭐ = Default model")
+	printInfo("  ★ = Premium quality")
 
 	printInfo("\nUsage:")
 	printInfo("  gimage generate \"your prompt\" --model <model-name>")
+	printInfo("\nRecommended:")
+	printInfo("  Free users:  gemini-2.5-flash-image (500/day FREE)")
+	printInfo("  Paid users:  imagen-4.0-fast-generate-001 ($0.02/image, fastest paid)")
 	printInfo("\nExamples:")
 	printInfo("  gimage generate \"sunset\" --model gemini-2.5-flash-image")
-	printInfo("  gimage generate \"abstract art\" --model imagen-4 --project my-gcp-project")
+	printInfo("  gimage generate \"abstract art\" --model imagen-4-fast --project my-gcp-project")
 
 	return nil
 }

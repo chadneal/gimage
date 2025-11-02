@@ -137,9 +137,62 @@ Before creating a release, ensure you have:
 
 ## Step-by-Step Release Instructions
 
-### Step 1: Prepare the Release
+### Automated Release (Recommended)
+
+**The entire release process is now automated!** Just run:
+
+```bash
+make release
+```
+
+This single command will:
+1. **Update `CHANGELOG.md`** with the current version (auto-calculated from git commits)
+   - Uses Claude Code AI to generate intelligent changelog entries from git commits
+   - Falls back to commit messages if Claude is not available
+   - Can be customized with a changes file if needed
+2. Sync version to `package.json` and `npm/package.json`
+3. Commit changes to git
+4. Create and push git tag
+5. Trigger GoReleaser to build and publish binaries
+6. Publish npm package
+
+**That's it!** The version is automatically calculated as `1.1.[commit_count]`.
+
+### AI-Powered Changelog Generation
+
+The script uses Claude Code (if available) to intelligently analyze git commits and generate structured changelog entries:
+
+```bash
+# Claude analyzes commits like:
+a6b24a6 Migrate from chadneal to apresai organization
+19bae35 Add make release target to automate the release process
+
+# And generates:
+### Changed
+- Migrated repository from chadneal to apresai organization
+- Updated all import paths and documentation references
+
+### Added
+- Automated release target in Makefile
+```
+
+**Fallback Levels:**
+1. Custom changes file (manual override)
+2. Claude Code AI generation (intelligent summaries)
+3. Raw commit messages (simple list)
+4. Default entry (minimal)
+
+### Manual Release (Advanced)
+
+If you need more control over the version number or changelog content:
 
 #### 1.1 Decide on the Version Number
+
+**Note**: Version is now auto-calculated as `1.1.[git-commit-count]`. To use a custom version, set it explicitly:
+
+```bash
+VERSION=1.2.0 make release
+```
 
 Use [Semantic Versioning](https://semver.org/):
 - **MAJOR.MINOR.PATCH** (e.g., 1.2.3)
@@ -149,67 +202,36 @@ Increment:
 - **MINOR**: New features, backwards-compatible
 - **PATCH**: Bug fixes, backwards-compatible
 
-For pre-1.0 versions (0.x.x):
-- **0.MINOR.PATCH**: Still in initial development
-- Breaking changes can happen in MINOR versions
-
 Examples:
-- `0.1.1` → `0.1.2`: Bug fixes
-- `0.1.1` → `0.2.0`: New features or breaking changes
-- `0.9.0` → `1.0.0`: First stable release!
+- `1.1.17` → `1.1.18`: Automatic (commit count increases)
+- `1.1.18` → `1.2.0`: New features (manual override)
+- `1.2.0` → `2.0.0`: Breaking changes (manual override)
 
-#### 1.2 Update the CHANGELOG
+#### 1.2 Optionally Customize the CHANGELOG
 
-Edit `CHANGELOG.md`:
+The changelog is automatically updated with a default entry. To customize it:
 
 ```bash
-# Open CHANGELOG.md in your editor
-vim CHANGELOG.md  # or use your preferred editor
-```
-
-**Before:**
-```markdown
-## [Unreleased]
-
-### Added
-- WebP support
-- New convert command
-```
-
-**After:**
-```markdown
-## [Unreleased]
-
-(empty - ready for next release)
-
-## [0.2.0] - 2025-11-01
-
+# Create a changes file
+cat > /tmp/changes.txt <<EOF
 ### Added
 - WebP support via nativewebp library
 - CLI convert command for format conversion
-- ...
+
+### Changed
+- Improved error handling
+
+### Fixed
+- Fixed bug in resize operation
+EOF
+
+# Update changelog with custom content
+./scripts/update-changelog.sh 1.1.18 /tmp/changes.txt
 ```
 
-**Important**: Add the comparison link at the bottom:
-```markdown
-[Unreleased]: https://github.com/apresai/gimage/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/apresai/gimage/compare/v0.1.1...v0.2.0
-```
+Or manually edit `CHANGELOG.md` before running `make release`.
 
-#### 1.3 Update Version in Makefile (if needed)
-
-```bash
-# Edit Makefile
-vim Makefile
-
-# Change this line:
-VERSION?=0.1.1
-
-# To:
-VERSION?=0.2.0
-```
-
-#### 1.4 Run Tests
+#### 1.3 Run Tests
 
 ```bash
 # Run all tests
@@ -222,44 +244,14 @@ make lint
 make build-all
 ```
 
-#### 1.5 Commit Changes
+#### 1.4 Run Release
 
 ```bash
-# Stage all changes
-git add CHANGELOG.md Makefile
+# Run automated release
+make release
 
-# Commit with conventional commit message
-git commit -m "chore: prepare release v0.2.0"
-
-# Push to main branch
-git push origin main
-```
-
-### Step 2: Create and Push the Git Tag
-
-```bash
-# Create annotated tag (recommended)
-git tag -a v0.2.0 -m "Release v0.2.0
-
-Major changes:
-- WebP support added
-- CLI convert command
-- Improved error handling
-
-See CHANGELOG.md for full details."
-
-# Verify tag was created
-git tag -l "v0.2.*"
-
-# Push the tag to GitHub
-# This triggers the release workflow!
-git push origin v0.2.0
-```
-
-**Alternative**: Lightweight tag (simpler)
-```bash
-git tag v0.2.0
-git push origin v0.2.0
+# Or with custom version
+VERSION=1.2.0 make release
 ```
 
 ### Step 3: Monitor the Release
@@ -550,21 +542,22 @@ Use this checklist for every release:
 - [ ] Verify `apresai/homebrew-tap` repository exists
 - [ ] Run `goreleaser release --snapshot --clean` to test locally
 
-### For Every Release
+### For Every Release (Automated Process)
 
-**1. Preparation** (5-10 minutes)
-- [ ] Get current date: `date +%Y-%m-%d`
-- [ ] Update `CHANGELOG.md` (move Unreleased to new version)
-- [ ] Update `VERSION` in `Makefile` (if needed)
+**1. Preparation** (2 minutes)
 - [ ] Run `make test` (all tests must pass)
 - [ ] Run `make lint` (no errors)
-- [ ] Commit: `git commit -m "chore: prepare release vX.Y.Z"`
-- [ ] Push: `git push origin main`
+- [ ] Optionally customize CHANGELOG entry (see "Manual Release" section)
 
-**2. Create Release** (1 minute)
-- [ ] Create tag: `git tag vX.Y.Z`
-- [ ] Push tag: `git push origin vX.Y.Z`
-- [ ] **Done!** GitHub Actions handles the rest
+**2. Create Release** (1 command!)
+- [ ] Run: `make release`
+- [ ] **Done!** Everything is automated:
+  - ✅ CHANGELOG.md updated
+  - ✅ package.json files synced
+  - ✅ Changes committed to git
+  - ✅ Git tag created and pushed
+  - ✅ GoReleaser builds binaries
+  - ✅ npm package published
 
 **3. Monitor** (5 minutes)
 - [ ] Watch GitHub Actions: https://github.com/apresai/gimage/actions
@@ -602,22 +595,30 @@ After a successful release, users can install gimage through:
 ### Common Release Commands
 
 ```bash
-# Quick patch release
-git add CHANGELOG.md Makefile
-git commit -m "chore: prepare release v0.1.2"
-git push
-git tag v0.1.2
-git push origin v0.1.2
+# Automated release (recommended)
+make release
 
-# Delete tag if needed
-git tag -d v0.1.2
-git push origin :refs/tags/v0.1.2
+# Release with custom version
+VERSION=1.2.0 make release
 
-# Test locally without publishing
+# Update changelog only
+make update-changelog
+
+# Sync version to package.json files only
+make sync-version
+
+# Check current version
+make version
+
+# Delete tag if needed (before running make release again)
+git tag -d v1.1.18
+git push origin :refs/tags/v1.1.18
+
+# Test GoReleaser locally without publishing
 goreleaser release --snapshot --clean
 ```
 
-**Total time for a release**: ~20 minutes (mostly automated!)
+**Total time for a release**: ~5 minutes (fully automated!)
 
 ---
 
