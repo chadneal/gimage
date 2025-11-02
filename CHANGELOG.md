@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.23] - 2025-11-02
+
+### Added
+- Comprehensive model pricing and announcement system with cost tracking and latest model information
+- Unit tests for generate command with coverage for both Gemini and Vertex AI backends
+- Unit tests for convert operation with format conversion validation
+- Unit tests for resize operation with comprehensive dimension and format testing
+- Unit tests for crop operation with boundary and validation testing
+- Automated changelog update script for release process
+
+### Changed
+- Enhanced generate command with model pricing display and cost estimation
+- Improved MCP server with model information and pricing details
+- Updated RELEASING.md with streamlined release workflow and automation improvements
+- Refactored Makefile with improved test coverage reporting and build targets
+
+
 ## [1.1.19] - 2025-11-02
 
 ### Changed
