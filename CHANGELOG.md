@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.26] - 2025-11-02
+
+### Removed
+- Removed MCP tool tests (convert_test.go, generate_test.go, models_test.go) that were incompatible with current implementation
+
+
 ## [1.1.23] - 2025-11-02
 
 ### Added
