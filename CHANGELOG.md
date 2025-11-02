@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.32] - 2025-11-02
+
+### Added
+
+- AWS Bedrock Nova Canvas integration with dual implementation modes (REST and SDK)
+- AWS Bedrock authentication setup via `gimage auth bedrock` command
+- Nova Canvas model support (`amazon.nova-canvas-v1:0`) with quality presets (standard/premium)
+- Advanced generation controls: negative prompts, CFG scale, seed, and quality settings
+- Comprehensive AWS Bedrock documentation (SDK guide, quickstart, onboarding guide)
+- Testing infrastructure with coverage reporting tools (`cmd/coverage-report`, `cmd/test-report`, `cmd/test-summary`)
+- Extensive test suites for Bedrock REST and SDK clients (382+ and 305+ test cases respectively)
+- MCP tools test coverage (batch, convert, generate operations)
+- End-to-end integration tests for CLI and generation workflows
+- Testing best practices documentation (TESTING.md)
+- Model onboarding guide (MODEL_ONBOARDING.md) for adding new backends
+- Documentation index (DOCUMENTATION_INDEX.md) for centralized reference
+- Coverage report scripts with detailed HTML output
+
+### Changed
+
+- Updated CLAUDE.md with multi-backend architecture guidance and AWS Bedrock sections
+- Enhanced `gimage generate` command with AWS-specific flags (quality, seed, CFG scale, negative prompts)
+- Expanded configuration system to support AWS credentials and region settings
+- Updated README.md with AWS Bedrock usage examples
+- Improved MCP_TOOLS.md with Bedrock integration examples
+- Enhanced Makefile with test coverage and reporting targets
+- Refactored generate models to support backend-specific options
+- Updated auth.go with Bedrock credential management (REST and SDK modes)
+
+### Fixed
+
+- Image scaling operations with improved precision
+- Crop and scale CLI commands with better error handling
+
+
 ## [1.1.29] - 2025-11-02
 
 ### Changed
