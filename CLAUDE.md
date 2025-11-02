@@ -248,38 +248,112 @@ img, err := client.GenerateImage(ctx, prompt, options)
 
 When adding new backends (Bedrock, Nova, etc.):
 
-1. **Create new client file**: `internal/generate/bedrock_rest.go`
+1. **Create new client file**: `internal/generate/bedrock_sdk.go` or `bedrock_rest.go`
 2. **Implement common interface**:
    ```go
-   func NewBedrockClient(cfg) (*BedrockClient, error)
+   func NewBedrockClient(ctx, cfg) (*BedrockClient, error)
    func (c *BedrockClient) GenerateImage(ctx, prompt, options) (*GeneratedImage, error)
    func (c *BedrockClient) Close() error
    ```
 3. **Add to model detection**: Update `generate.DetectAPIFromModel()`
 4. **Add auth setup**: Create `gimage auth bedrock` command
 5. **Update docs**: Add to this section and MCP_TOOLS.md
-6. **Add tests**: Create `bedrock_test.go` with mocked API calls
+6. **Add tests**: Create `bedrock_test.go` for unit tests (request building, response parsing, validation)
+7. **Integration tests**: Add `bedrock_integration_test.go` with real API calls (manual only)
 
 ### Testing Strategy for Multi-Backend
 
-**Unit Tests**: Mock API calls, test each backend separately
+**CRITICAL: DO NOT MOCK CLOUD PROVIDER APIs**
+
+Mocking cloud provider APIs (AWS, Google, etc.) provides **zero value** and creates a false sense of security. Cloud providers change their APIs, error formats, rate limits, and behaviors regularly. Mocks become stale immediately and don't catch real-world issues.
+
+**What TO Test**:
+- ✅ Request payload building (validate JSON structure before sending)
+- ✅ Response parsing logic (with real example responses from docs)
+- ✅ Error message formatting and actionability
+- ✅ Input validation (dimensions, prompts, parameters)
+- ✅ Configuration loading and credential detection
+- ✅ CLI flag parsing and option handling
+
+**What NOT TO Test**:
+- ❌ Mocked API calls (worthless, creates false confidence)
+- ❌ Fake HTTP responses (providers change formats)
+- ❌ Simulated errors (real errors differ from assumptions)
+
+**Testing Approach**:
+
+1. **Unit Tests** - Test everything EXCEPT the actual API call:
 ```go
-// Test files should match implementation files
-gemini_rest.go     -> gemini_rest_test.go     (mocked Gemini REST API)
-vertex_rest.go     -> vertex_rest_test.go     (mocked Vertex REST API)
-vertex_sdk.go      -> vertex_sdk_test.go      (mocked Vertex SDK)
+// ✅ GOOD: Test request building
+func TestBuildNovaCanvasRequest(t *testing.T) {
+    request := buildNovaCanvasRequest("test prompt", GenerateOptions{
+        Size: "1024x1024",
+        Seed: 42,
+    })
+
+    // Validate the JSON structure matches AWS docs
+    assert.Equal(t, "TEXT_IMAGE", request.TaskType)
+    assert.Equal(t, 1024, request.ImageGenerationConfig.Width)
+    assert.Equal(t, 42, request.ImageGenerationConfig.Seed)
+}
+
+// ✅ GOOD: Test response parsing with real example
+func TestParseNovaCanvasResponse(t *testing.T) {
+    // Use actual response from AWS documentation
+    realResponse := `{"images": ["iVBORw0KGgo..."], "error": null}`
+
+    result, err := parseNovaCanvasResponse([]byte(realResponse))
+    assert.NoError(t, err)
+    assert.NotEmpty(t, result.Images)
+}
+
+// ❌ BAD: Mocking the AWS SDK
+// type mockBedrockClient struct { ... }  // DON'T DO THIS
 ```
 
-**Integration Tests**: Use real credentials (optional, manual)
+2. **Integration Tests** - Test against REAL APIs (manual only):
+```go
+// +build integration
+
+// These tests cost money and require real credentials
+// Run manually: go test -tags=integration ./internal/generate/...
+func TestBedrockRealAPI(t *testing.T) {
+    if os.Getenv("AWS_ACCESS_KEY_ID") == "" {
+        t.Skip("Real AWS credentials not configured")
+    }
+
+    client, _ := generate.NewBedrockSDKClient(ctx, "us-east-1")
+
+    // Real API call (costs $0.04)
+    img, err := client.GenerateImage(ctx, "simple test", GenerateOptions{})
+    assert.NoError(t, err)
+    assert.NotEmpty(t, img.Data)
+}
+```
+
+3. **Manual Testing** - Primary validation method:
 ```bash
-# Only run if credentials are configured
-go test -tags=integration ./internal/generate/...
+# Test with real credentials (costs ~$0.04-0.20)
+gimage generate --api bedrock "test image" --verbose
+gimage generate --api vertex "test image" --verbose
+gimage generate --api gemini "test image" --verbose
 ```
 
-**MCP Tool Tests**: Focus on parameter validation, not actual generation
-```go
-// Test MCP tool request/response format, not actual API calls
-// Real API calls require credentials and cost money
+**Why This Approach Works**:
+- Unit tests catch logic bugs without API calls
+- Integration tests validate real behavior (run manually before releases)
+- Manual testing is quick and catches UX issues
+- No maintenance burden of brittle mocks
+- Tests accurately reflect production behavior
+
+**Test File Structure**:
+```
+internal/generate/
+├── bedrock_sdk.go          # Implementation
+├── bedrock_request.go      # Request building (unit testable)
+├── bedrock_response.go     # Response parsing (unit testable)
+├── bedrock_test.go         # Unit tests (no API calls)
+└── bedrock_integration_test.go  # Real API tests (manual only)
 ```
 
 ### Configuration File Support
