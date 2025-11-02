@@ -88,3 +88,6 @@ gimage-*
 *.zip
 builds/
 release/
+coverage-report.html
+coverage.html
+coverage.out
