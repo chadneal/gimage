@@ -52,7 +52,7 @@ builds:
 
 # Archive configuration - how to package the binaries
 archives:
-  - id: gimage-archive
+  - id: gimage
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -67,11 +67,6 @@ archives:
       - LICENSE*
       - CHANGELOG.md
       - docs/**/*
-
-    # Archive format (tar.gz by default, zip for windows)
-    formats:
-      - tar.gz
-      - zip
 
 # Checksums - create checksums file for verification
 checksum:
