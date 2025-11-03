@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.38] - 2025-11-02
+
+### Changed
+- Upgraded GoReleaser configuration to v2 format for improved build and release automation
+
+
 ## [1.1.36] - 2025-11-02
 
 ### Changed

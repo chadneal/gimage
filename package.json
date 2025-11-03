@@ -1,6 +1,6 @@
 {
   "name": "gimage-workspace",
-  "version": "1.1.36",
+  "version": "1.1.38",
   "private": true,
   "description": "Workspace for gimage project - actual npm package is in npm/ directory",
   "scripts": {
