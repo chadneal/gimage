@@ -16,7 +16,7 @@ import (
 func RegisterGenerateImageTool(server *mcp.MCPServer) {
 	tool := mcp.Tool{
 		Name:        "generate_image",
-		Description: "Generate an AI image from a text prompt using Gemini or Vertex AI. Supports multiple models (Gemini 2.5 Flash, Imagen 3, Imagen 4), various sizes up to 2048x2048, and style controls (photorealistic, artistic, anime). Can use negative prompts to exclude unwanted elements and seeds for reproducible generation. IMPORTANT: Always specify an output path (e.g., ~/Desktop/image.png or ~/Documents/image.png) to ensure the file is saved to an accessible location. The tool will automatically try the current directory first, then fall back to the home directory if needed.",
+		Description: "Generate an AI image from a text prompt using Gemini, Vertex AI, or AWS Bedrock. Quick start: generate_image(prompt='sunset over mountains', output='~/Desktop/sunset.png') uses the default free model (Gemini 2.5 Flash, 1024x1024). For higher quality, use model='imagen-4' (paid, requires Vertex AI). Supports various sizes up to 2048x2048, style controls (photorealistic, artistic, anime), negative prompts to exclude unwanted elements, and seeds for reproducible generation. IMPORTANT: Always specify an output path (e.g., ~/Desktop/image.png or ~/Documents/image.png) to ensure the file is saved to an accessible location.",
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: false, // Creates new files but doesn't modify existing ones
 			IdempotentHint:  false, // Each call generates a different image
@@ -36,7 +36,7 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 				"size": map[string]interface{}{
 					"type":        "string",
 					"enum":        []string{"256x256", "512x512", "1024x1024", "1024x1792", "1792x1024", "2048x2048"},
-					"description": "Image dimensions. Default is 1024x1024. Larger sizes available with Vertex AI.",
+					"description": "Image dimensions (WIDTHxHEIGHT). Default: 1024x1024. Gemini supports up to 1024x1024. Larger sizes (1792x1024, 2048x2048) require Vertex AI with imagen-4. Examples: '1024x1024' (square), '1792x1024' (16:9 landscape), '1024x1792' (9:16 portrait), '2048x2048' (ultra HD).",
 					"default":     "1024x1024",
 				},
 				"model": map[string]interface{}{
@@ -52,7 +52,7 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 						"nova-canvas",
 						"amazon.nova-canvas-v1:0",
 					},
-					"description": "AI model to use. Supports exact names (e.g., gemini-2.5-flash-image) or aliases (e.g., gemini, flash). Default: gemini-2.5-flash-image (free, fast). imagen-4 offers highest quality but requires Vertex AI. If model not found, automatically falls back to gemini-2.5-flash-image.",
+					"description": "AI model to use. Supports exact names or aliases. Common aliases: 'gemini' or 'gemini-flash' for gemini-2.5-flash-image (default, FREE up to 1500/day, supports up to 1024x1024), 'imagen' or 'imagen-4' for imagen-4.0-generate-001 (paid $0.02-0.04/image, highest quality, supports up to 2048x2048), 'nova-canvas' for amazon.nova-canvas-v1:0 (paid $0.04-0.08/image, supports up to 1408x1408). Invalid model names automatically fall back to default. Examples: 'gemini' (quick iterations), 'imagen-4' (final high-quality output).",
 					"default":     "gemini-2.5-flash-image",
 				},
 				"style": map[string]interface{}{

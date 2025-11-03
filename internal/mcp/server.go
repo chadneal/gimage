@@ -21,6 +21,7 @@ type MCPServer struct {
 	stdout  io.Writer
 	stderr  io.Writer
 	tools   map[string]Tool
+	prompts map[string]Prompt
 	verbose bool
 }
 
@@ -37,6 +38,7 @@ func NewMCPServer(name, version string, cfg *config.Config, verbose bool) *MCPSe
 		stdout:  os.Stdout,
 		stderr:  os.Stderr,
 		tools:   make(map[string]Tool),
+		prompts: make(map[string]Prompt),
 		verbose: verbose,
 	}
 }

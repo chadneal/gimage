@@ -13,7 +13,7 @@ import (
 func RegisterCropImageTool(server *mcp.MCPServer) {
 	tool := mcp.Tool{
 		Name:        "crop_image",
-		Description: "Crop an image to a specific rectangular region. Specify the top-left corner coordinates (x, y) and the width and height of the region to extract. Useful for removing unwanted borders, focusing on specific areas, or extracting thumbnails from larger images.",
+		Description: "Crop an image to a specific rectangular region. Specify coordinates and dimensions to extract. Example: crop_image(input='photo.png', x=0, y=100, width=800, height=600, output='cropped.png') extracts an 800x600 region starting at position (0,100). IMPORTANT: All parameters (x, y, width, height) are positional integers, not flags. Coordinates start at (0,0) in the top-left corner. Useful for creating hero images, removing borders, or focusing on specific areas. TIP: Use get_image_info first to check actual image dimensions before cropping.",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{

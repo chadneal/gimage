@@ -113,6 +113,9 @@ For more information: https://github.com/apresai/gimage`,
 		tools.RegisterBatchConvertTool(server)
 		tools.RegisterListModelsTool(server)
 
+		// Register all prompts (examples and learning templates for LLMs)
+		mcp.RegisterAllPrompts(server)
+
 		// Setup signal handling for graceful shutdown
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()

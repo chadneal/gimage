@@ -27,6 +27,8 @@ func (s *MCPServer) HandleRequest(ctx context.Context, req *JSONRPCRequest) *JSO
 		return s.handleCallTool(ctx, req)
 	case MethodListPrompts:
 		return s.handleListPrompts(ctx, req)
+	case MethodGetPrompt:
+		return s.handleGetPrompt(ctx, req)
 	case MethodListResources:
 		return s.handleListResources(ctx, req)
 	default:
@@ -58,6 +60,9 @@ func (s *MCPServer) handleInitialize(ctx context.Context, req *JSONRPCRequest) *
 			"capabilities": map[string]interface{}{
 				"tools": map[string]interface{}{
 					"listChanged": true, // Notify when tool list changes
+				},
+				"prompts": map[string]interface{}{
+					"listChanged": false, // Prompts are static
 				},
 			},
 		},
@@ -167,14 +172,94 @@ func (s *MCPServer) handleCallTool(ctx context.Context, req *JSONRPCRequest) *JS
 func (s *MCPServer) handleListPrompts(ctx context.Context, req *JSONRPCRequest) *JSONRPCResponse {
 	logger := observability.LoggerWithComponent(ctx, "mcp-handler")
 
-	// gimage doesn't expose prompts, return empty list
-	logger.Debug().Msg("Listing prompts (gimage has none)")
+	prompts := make([]map[string]interface{}, 0, len(s.prompts))
+
+	for _, prompt := range s.prompts {
+		promptInfo := map[string]interface{}{
+			"name":        prompt.Name,
+			"title":       prompt.Title,
+			"description": prompt.Description,
+		}
+
+		// Include arguments if present
+		if len(prompt.Arguments) > 0 {
+			args := make([]map[string]interface{}, 0, len(prompt.Arguments))
+			for _, arg := range prompt.Arguments {
+				args = append(args, map[string]interface{}{
+					"name":        arg.Name,
+					"description": arg.Description,
+					"required":    arg.Required,
+				})
+			}
+			promptInfo["arguments"] = args
+		}
+
+		prompts = append(prompts, promptInfo)
+	}
+
+	logger.Debug().
+		Int("prompts_count", len(prompts)).
+		Msg("Listing prompts")
 
 	return &JSONRPCResponse{
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result: map[string]interface{}{
-			"prompts": []interface{}{},
+			"prompts": prompts,
+		},
+	}
+}
+
+func (s *MCPServer) handleGetPrompt(ctx context.Context, req *JSONRPCRequest) *JSONRPCResponse {
+	logger := observability.LoggerWithComponent(ctx, "mcp-handler")
+
+	// Extract prompt name
+	name, ok := req.Params["name"].(string)
+	if !ok {
+		logger.Warn().Msg("Invalid params: missing prompt name")
+		return s.errorResponse(req.ID, -32602, "Invalid params: missing prompt name")
+	}
+
+	// Extract arguments (optional)
+	arguments := make(map[string]string)
+	if args, ok := req.Params["arguments"].(map[string]interface{}); ok {
+		for k, v := range args {
+			if strVal, ok := v.(string); ok {
+				arguments[k] = strVal
+			}
+		}
+	}
+
+	logger.Info().
+		Str("prompt", name).
+		Interface("arguments", arguments).
+		Msg("Getting prompt")
+
+	// Get prompt with substituted arguments
+	message, err := s.GetPrompt(name, arguments)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Str("prompt", name).
+			Msg("Failed to get prompt")
+		return s.errorResponse(req.ID, -32602, fmt.Sprintf("Failed to get prompt: %v", err))
+	}
+
+	// Return prompt as messages (MCP spec format)
+	return &JSONRPCResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result: map[string]interface{}{
+			"description": s.prompts[name].Description,
+			"messages": []map[string]interface{}{
+				{
+					"role": "user",
+					"content": map[string]interface{}{
+						"type": "text",
+						"text": message,
+					},
+				},
+			},
 		},
 	}
 }
