@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.43] - 2025-11-02
+
+### Added
+
+- MCP Prompts feature: New prompt templates for image generation, batch processing, and common workflows
+- MCP server now exposes 13 prompt templates via the prompts/list capability
+- Comprehensive documentation for MCP Prompts design and implementation (MCP_PROMPTS_DESIGN.md, MCP_PROMPTS_IMPLEMENTATION.md)
+- Analysis documentation for LLM learning patterns with MCP (MCP_LLM_LEARNING_ANALYSIS.md)
+
+### Changed
+
+- Enhanced MCP tool descriptions with more actionable guidance for LLM clients
+- Improved MCP handler with prompt list and get capabilities
+- Updated MCP server to register prompt templates on initialization
+
+
 ## [1.1.41] - 2025-11-02
 
 ### Changed
