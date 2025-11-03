@@ -160,6 +160,46 @@ Close() error  // Cleanup resources
 4. **Config default**: Use `default_api` from `~/.gimage/config.md`
 5. **Fallback**: Default to Gemini if multiple backends are available
 
+### Model Name Resolution for AI Assistants
+
+**CRITICAL**: When users specify models using informal names, map them to exact model IDs before tool calls.
+
+#### Common Name Mappings
+
+| User says | Exact model ID | API | Notes |
+|-----------|---------------|-----|-------|
+| "gemini", "gemini flash", "flash", "2.5 flash" | `gemini-2.5-flash-image` | gemini | Default, FREE, recommended |
+| "gemini 2.0 flash", "2.0 flash" | `gemini-2.0-flash-preview-image-generation` | gemini | Older version |
+| "imagen", "imagen 4", "imagen-4" | `imagen-4` | vertex | Latest, highest quality |
+| "imagen 3", "imagen-3" | `imagen-3.0-generate-002` | vertex | Older version |
+| "nova", "nova canvas", "nova-canvas" | `amazon.nova-canvas-v1:0` | bedrock | AWS, up to 1408x1408 |
+
+#### Resolution Strategy for AI Assistants
+
+1. **Check user input against mapping table first** - Never guess model names
+2. **Use defaults when ambiguous**:
+   - No model specified → `gemini-2.5-flash-image` (free, fast)
+   - "gemini" without version → `gemini-2.5-flash-image`
+   - "imagen" without version → `imagen-4`
+3. **Validate before tool call**: Ensure exact model ID from table
+4. **If uncertain**: Use `--list-models` flag to check available models
+5. **Never use shortened names** like `gemini-flash` or `nova` directly
+
+**Example Translations**:
+```bash
+# User says: "use gemini flash"
+# Correct:   gimage generate "prompt" --model gemini-2.5-flash-image
+# WRONG:     gimage generate "prompt" --model gemini-flash
+
+# User says: "use imagen"
+# Correct:   gimage generate "prompt" --model imagen-4
+# WRONG:     gimage generate "prompt" --model imagen
+
+# User says: "use nova canvas"
+# Correct:   gimage generate "prompt" --model amazon.nova-canvas-v1:0
+# WRONG:     gimage generate "prompt" --model nova-canvas
+```
+
 ### Gemini API Backend
 
 **Implementation**: REST API client (`gemini_rest.go`)

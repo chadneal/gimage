@@ -46,8 +46,13 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 						"gemini-2.0-flash-preview-image-generation",
 						"imagen-3.0-generate-002",
 						"imagen-4",
+						"gemini",
+						"gemini-flash",
+						"imagen",
+						"nova-canvas",
+						"amazon.nova-canvas-v1:0",
 					},
-					"description": "AI model to use. gemini-2.5-flash-image is default and recommended. imagen-4 offers highest quality but requires Vertex AI.",
+					"description": "AI model to use. Supports exact names (e.g., gemini-2.5-flash-image) or aliases (e.g., gemini, flash). Default: gemini-2.5-flash-image (free, fast). imagen-4 offers highest quality but requires Vertex AI. If model not found, automatically falls back to gemini-2.5-flash-image.",
 					"default":     "gemini-2.5-flash-image",
 				},
 				"style": map[string]interface{}{
@@ -98,6 +103,16 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 
 			modelName, _ := args["model"].(string)
 			if modelName == "" {
+				modelName = "gemini-2.5-flash-image"
+			}
+
+			// Resolve model aliases to exact names (e.g., "gemini" -> "gemini-2.5-flash-image")
+			modelName = generate.ResolveModelName(modelName)
+
+			// Validate model exists, fallback to default if not
+			_, modelErr := generate.GetModelInfo(modelName)
+			if modelErr != nil {
+				// Model not found, fallback to default free model
 				modelName = "gemini-2.5-flash-image"
 			}
 

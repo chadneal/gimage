@@ -149,6 +149,16 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	// project, _ := cmd.Flags().GetString("project") // TODO: Enable when Vertex is implemented
 	// location, _ := cmd.Flags().GetString("location") // TODO: Enable when Vertex is implemented
 	model, _ := cmd.Flags().GetString("model")
+
+	// Resolve model aliases to exact names (e.g., "gemini" -> "gemini-2.5-flash-image")
+	originalModel := model
+	if model != "" {
+		model = generate.ResolveModelName(model)
+		if originalModel != model {
+			printVerbose("Resolved model '%s' to '%s'", originalModel, model)
+		}
+	}
+
 	size, _ := cmd.Flags().GetString("size")
 	style, _ := cmd.Flags().GetString("style")
 	negative, _ := cmd.Flags().GetString("negative")
@@ -460,6 +470,11 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to generate image: %w", err)
 	}
 
+	// Defensive nil check (should never happen if error handling is correct)
+	if generatedImage == nil {
+		return fmt.Errorf("internal error: generated image is nil but no error was returned - please report this bug")
+	}
+
 	// Determine output path
 	if output == "" {
 		output = generate.GenerateOutputPath(generatedImage.Format)
@@ -549,10 +564,10 @@ func printAvailableModels() error {
 		if !hasGemini {
 			authMark = redNo()
 		}
-		// Display alias if available, otherwise full name
+		// Display exact name first (what users should use), then aliases in parentheses
 		displayName := m.Name
 		if alias := generate.GetPreferredAlias(m.Name); alias != "" {
-			displayName = fmt.Sprintf("%s (%s)", alias, m.Name)
+			displayName = fmt.Sprintf("%s (alias: %s)", m.Name, alias)
 		}
 		// Print model name and display name on first line (73 chars for model name)
 		paddedName := padRight(displayName, 73)
@@ -589,10 +604,10 @@ func printAvailableModels() error {
 		if !hasVertex {
 			authMark = redNo()
 		}
-		// Display alias if available, otherwise full name
+		// Display exact name first (what users should use), then aliases in parentheses
 		displayName := m.Name
 		if alias := generate.GetPreferredAlias(m.Name); alias != "" {
-			displayName = fmt.Sprintf("%s (%s)", alias, m.Name)
+			displayName = fmt.Sprintf("%s (alias: %s)", m.Name, alias)
 		}
 		// Print model name and display name on first line (73 chars for model name)
 		paddedName := padRight(displayName, 73)
@@ -626,10 +641,10 @@ func printAvailableModels() error {
 		if !hasBedrock {
 			authMark = redNo()
 		}
-		// Display alias if available, otherwise full name
+		// Display exact name first (what users should use), then aliases in parentheses
 		displayName := m.Name
 		if alias := generate.GetPreferredAlias(m.Name); alias != "" {
-			displayName = fmt.Sprintf("%s (%s)", alias, m.Name)
+			displayName = fmt.Sprintf("%s (alias: %s)", m.Name, alias)
 		}
 		// Print model name and display name on first line (73 chars for model name)
 		paddedName := padRight(displayName, 73)
