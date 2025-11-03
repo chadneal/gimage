@@ -1,6 +1,11 @@
 # GoReleaser configuration for gimage
 # Documentation: https://goreleaser.com
 
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
 # Metadata about the project
 project_name: gimage
 
@@ -63,11 +68,10 @@ archives:
       - CHANGELOG.md
       - docs/**/*
 
-    # Format per OS
-    format_overrides:
-      - goos: windows
-        format: zip  # Windows users expect .zip
-      # Linux and macOS get .tar.gz by default
+    # Archive format (tar.gz by default, zip for windows)
+    formats:
+      - tar.gz
+      - zip
 
 # Checksums - create checksums file for verification
 checksum:
@@ -76,7 +80,7 @@ checksum:
 
 # Snapshots - for development builds (not tagged releases)
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 # Changelog generation
 changelog:
@@ -160,7 +164,10 @@ release:
 
 # Homebrew tap configuration
 brews:
-  - name: gimage
+  - ids:
+      - gimage
+
+    name: gimage
 
     # Repository for Homebrew formula
     repository:
