@@ -1,49 +1,35 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
 ## Project Overview
 
-This is `gimage` - a Go-based CLI tool for AI-powered image generation and processing.
+`gimage` - A Go-based CLI tool for AI-powered image generation and processing.
 
 **Core Capabilities**:
-- Generate images from text using Google Gemini 2.5 Flash Image, Vertex AI Imagen 4, or AWS Bedrock Nova Canvas
-- Process images: resize, scale, crop, compress (PNG, JPG, WebP, GIF, TIFF, BMP)
+- Generate images using Google Gemini 2.5 Flash, Vertex AI Imagen 4, or AWS Bedrock Nova Canvas
+- Process images: resize, scale, crop, compress, convert (PNG, JPG, WebP, GIF, TIFF, BMP)
 - Batch processing with concurrent operations
-- MCP server for Claude integration
+- MCP server for Claude Desktop integration
+- AWS Lambda API deployment
 
 **Technology Stack**:
-- Go 1.22+ (pure Go, zero C dependencies)
+- Pure Go 1.22+ (zero C dependencies for portability)
 - Image processing: `github.com/disintegration/imaging`
-- CLI framework: Cobra + Viper
-- APIs: Gemini API, Vertex AI, and AWS Bedrock
+- CLI: Cobra + Viper
+- APIs: Gemini API, Vertex AI, AWS Bedrock
 
 ## Build Commands
 
 ```bash
-# Build the CLI
-make build
-
-# Build for all platforms
-make build-all
-
-# Install locally
-make install
-
-# Run tests
-make test
-
-# Run tests with coverage
-make test-coverage
-
-# Run linter
-make lint
-
-# Clean build artifacts
-make clean
-
-# Run benchmarks
-make benchmark
+make build          # Build CLI binary
+make build-all      # Build for all platforms
+make install        # Install locally
+make test           # Run tests
+make test-coverage  # Run tests with coverage
+make lint           # Run linter
+make clean          # Clean artifacts
+make benchmark      # Run benchmarks
 ```
 
 ## Project Structure
@@ -52,14 +38,14 @@ make benchmark
 gimage/
 ├── cmd/gimage/              # CLI entrypoint
 ├── internal/
-│   ├── imaging/             # Image processing (resize, scale, crop, compress)
-│   ├── generate/            # AI image generation (Gemini, Vertex, Bedrock clients)
+│   ├── imaging/             # Image processing operations
+│   ├── generate/            # AI image generation (Gemini, Vertex, Bedrock)
 │   ├── config/              # Configuration & authentication
 │   ├── cli/                 # CLI commands
 │   └── mcp/                 # MCP server implementation
 ├── pkg/models/              # Shared types
 ├── test/
-│   ├── fixtures/            # Test images (DO NOT MODIFY - use only in tests)
+│   ├── fixtures/            # Test images (DO NOT MODIFY)
 │   └── integration/         # Integration tests
 └── docs/                    # Documentation
 ```
@@ -67,582 +53,160 @@ gimage/
 ## Architecture Patterns
 
 ### Pure Go Philosophy
-This project uses **pure Go with zero C dependencies** for maximum portability:
-- Single binary distribution (no system dependencies)
-- Cross-compilation to any platform (Linux, macOS, Windows, ARM)
-- Uses `disintegration/imaging` library (not bimg/libvips)
-- Never add C library dependencies
-
-### Image Processing Flow
-1. Load image with format auto-detection
-2. Apply operation (resize/scale/crop/compress) using Lanczos resampling
-3. Handle transparency (PNG→JPG uses white background)
-4. Save with proper format encoding
+This project uses **pure Go with zero C dependencies**:
+- Single binary distribution, no system dependencies
+- Cross-compilation to any platform
+- Uses `disintegration/imaging` (not bimg/libvips)
+- **Never add C library dependencies**
 
 ### Configuration Hierarchy (Priority Order)
-1. Command-line flags (highest priority)
-2. Environment variables (`GEMINI_API_KEY`, `VERTEX_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`)
+1. Command-line flags (highest)
+2. Environment variables (`GEMINI_API_KEY`, `VERTEX_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.)
 3. Config file (`~/.gimage/config.md`)
-4. Default values (lowest priority)
+4. Default values (lowest)
 
 ### API Client Pattern
-Both Gemini and Vertex clients follow the same interface:
+All backends (Gemini, Vertex, Bedrock) implement common interface:
 ```go
 type ImageGenerator interface {
-    GenerateImage(prompt string, options GenerateOptions) (*GeneratedImage, error)
-    ValidateCredentials() error
+    GenerateImage(ctx context.Context, prompt string, options GenerateOptions) (*GeneratedImage, error)
+    Close() error
 }
 ```
 
 ### Error Handling
-- Return errors with context (use `fmt.Errorf` with `%w`)
+- Return errors with context using `fmt.Errorf` with `%w`
 - Provide actionable error messages
 - Never panic in production code
 - Validate inputs early
+
+## Multi-Backend Architecture
+
+**Supported Backends**:
+- **Gemini API** (REST) - Free tier, fastest setup
+- **Vertex AI** - Express Mode (REST) or Full Mode (SDK)
+- **AWS Bedrock** - REST or SDK modes
+
+### Backend Selection Logic
+
+Model name implies backend (auto-detect):
+- `gemini-2.5-flash-image` → gemini
+- `imagen-4` → vertex
+- `amazon.nova-canvas-v1:0` → bedrock
+
+Optional `--api` flag overrides auto-detection.
+
+### Model Name Resolution
+
+Map informal names to exact model IDs:
+
+| User Input | Exact Model ID | API |
+|-----------|---------------|-----|
+| "gemini", "flash" | `gemini-2.5-flash-image` | gemini |
+| "imagen", "imagen-4" | `imagen-4` | vertex |
+| "nova", "nova-canvas" | `amazon.nova-canvas-v1:0` | bedrock |
+
+**Always use exact model IDs from the mapping table.**
 
 ## Development Workflow
 
 ### Adding a New CLI Command
 1. Create command file in `internal/cli/`
-2. Implement using Cobra patterns (see existing commands)
+2. Implement using Cobra patterns
 3. Add flags with Viper binding
-4. Wire up to root command in `cmd/gimage/main.go`
+4. Wire up to root command
 5. Add unit tests
-6. Update documentation in `docs/API.md`
+6. Update `COMMANDS.md`
 
 ### Adding Image Processing Operations
 1. Create operation file in `internal/imaging/`
 2. Use `disintegration/imaging` library exclusively
 3. Handle all supported formats (PNG, JPG, WebP, GIF, TIFF, BMP)
 4. Add comprehensive error handling
-5. Create unit tests with fixtures from `test/fixtures/`
+5. Create unit tests with fixtures from `test/fixtures/` (DO NOT MODIFY)
 6. Benchmark critical operations
 
 ### Testing Strategy
-- Unit tests: >80% coverage required
-- Integration tests: Mock external APIs (Gemini/Vertex)
-- Test fixtures: Use existing images in `test/fixtures/` (DO NOT MODIFY)
-- Benchmark: Profile image processing operations
-- Table-driven tests for multiple scenarios
 
-## API Integration - Multi-Backend Architecture
+**Unit Tests (>80% coverage required)**:
+- Test request building logic (validate JSON structure)
+- Test response parsing with real example responses
+- Test input validation (dimensions, prompts, parameters)
+- Test configuration loading
+- Test CLI flag parsing
 
-**IMPORTANT**: Gimage supports multiple AI generation backends with both SDK and REST API implementations. Each backend has its own client type but shares a common interface pattern.
+**Integration Tests (manual, costs money)**:
+- Real API calls to Gemini/Vertex/Bedrock
+- Run manually: `go test -tags=integration`
+- **DO NOT MOCK cloud provider APIs** - mocks provide zero value
 
-### Architecture Overview
+**Table-driven tests** for multiple scenarios.
 
-```
-Image Generation Backends:
-├── Gemini API (REST)        -> generate.NewGeminiRESTClient(apiKey)
-├── Vertex AI (Express Mode) -> generate.NewVertexRESTClient(apiKey, project, location)  [REST]
-├── Vertex AI (Full Mode)    -> generate.NewVertexSDKClient(ctx, project, location)      [SDK]
-├── AWS Bedrock (REST)       -> generate.NewBedrockRESTClient(region, accessKey, secretKey)  [REST]
-└── AWS Bedrock (SDK)        -> generate.NewBedrockSDKClient(ctx, region)                     [SDK]
-```
+### MCP Server
 
-**Common Client Interface Pattern:**
-All clients implement these methods:
-```go
-GenerateImage(ctx context.Context, prompt string, options models.GenerateOptions) (*models.GeneratedImage, error)
-Close() error  // Cleanup resources
-```
+MCP server runs via `gimage serve` and exposes 10 tools for AI assistants:
+- `generate_image`, `resize_image`, `scale_image`, `crop_image`, `compress_image`
+- `convert_image`, `batch_resize`, `batch_compress`, `batch_convert`, `list_models`
 
-### Backend Selection Logic (Priority Order)
+Config: `~/.gimage/config.md` (markdown format using `**key**: value`)
 
-**The `--api` flag is optional and usually unnecessary.** The system auto-detects the backend from the model name.
+## Authentication
 
-1. **Auto-detect from model** (most common): Model name implies backend
-   - `--model imagen-4` → vertex
-   - `--model nova-canvas` → bedrock
-   - `--model gemini-2.5-flash-image` → gemini
-2. **Explicit flag** (override): `--api gemini`, `--api vertex`, or `--api bedrock`
-3. **Auto-detect from credentials**: If no model specified, check which API keys are configured
-4. **Config default**: Use `default_api` from `~/.gimage/config.md`
-5. **Fallback**: Default to Gemini if multiple backends are available
+Interactive commands create/update config:
 
-### Model Name Resolution for AI Assistants
-
-**CRITICAL**: When users specify models using informal names, map them to exact model IDs before tool calls.
-
-#### Common Name Mappings
-
-| User says | Exact model ID | API | Notes |
-|-----------|---------------|-----|-------|
-| "gemini", "gemini flash", "flash", "2.5 flash" | `gemini-2.5-flash-image` | gemini | Default, FREE, recommended |
-| "gemini 2.0 flash", "2.0 flash" | `gemini-2.0-flash-preview-image-generation` | gemini | Older version |
-| "imagen", "imagen 4", "imagen-4" | `imagen-4` | vertex | Latest, highest quality |
-| "imagen 3", "imagen-3" | `imagen-3.0-generate-002` | vertex | Older version |
-| "nova", "nova canvas", "nova-canvas" | `amazon.nova-canvas-v1:0` | bedrock | AWS, up to 1408x1408 |
-
-#### Resolution Strategy for AI Assistants
-
-1. **Check user input against mapping table first** - Never guess model names
-2. **Use defaults when ambiguous**:
-   - No model specified → `gemini-2.5-flash-image` (free, fast)
-   - "gemini" without version → `gemini-2.5-flash-image`
-   - "imagen" without version → `imagen-4`
-3. **Validate before tool call**: Ensure exact model ID from table
-4. **If uncertain**: Use `--list-models` flag to check available models
-5. **Never use shortened names** like `gemini-flash` or `nova` directly
-
-**Example Translations**:
 ```bash
-# User says: "use gemini flash"
-# Correct:   gimage generate "prompt" --model gemini-2.5-flash-image
-# WRONG:     gimage generate "prompt" --model gemini-flash
-
-# User says: "use imagen"
-# Correct:   gimage generate "prompt" --model imagen-4
-# WRONG:     gimage generate "prompt" --model imagen
-
-# User says: "use nova canvas"
-# Correct:   gimage generate "prompt" --model amazon.nova-canvas-v1:0
-# WRONG:     gimage generate "prompt" --model nova-canvas
+gimage auth gemini    # Gemini API key
+gimage auth vertex    # Vertex AI (3 modes: Express, Service Account, ADC)
+gimage auth bedrock   # AWS Bedrock (2 modes: REST with keys, SDK with credential chain)
 ```
 
-### Gemini API Backend
-
-**Implementation**: REST API client (`gemini_rest.go`)
-
-**Setup**:
-```bash
-gimage auth gemini
-```
-
-**Models**:
-- `gemini-2.5-flash-image` (default, recommended)
-- `gemini-2.0-flash-preview-image-generation`
-
-**Authentication**:
-- API key via `GEMINI_API_KEY` env var or `~/.gimage/config.md`
-- Get free API key: https://aistudio.google.com/app/apikey
-- Free tier: 1500 requests/day
-
-**Usage in Code**:
-```go
-import "github.com/apresai/gimage/internal/generate"
-import "github.com/apresai/gimage/internal/config"
-
-// Get API key from config or env
-key, err := config.GetGeminiAPIKey("")
-client, err := generate.NewGeminiRESTClient(key)
-defer client.Close()
-
-ctx := context.Background()
-options := models.GenerateOptions{
-    Model: "gemini-2.5-flash-image",
-    Size: "1024x1024",
-    Style: "photorealistic",
-}
-img, err := client.GenerateImage(ctx, prompt, options)
-```
-
-### Vertex AI Backend
-
-**Two Implementation Modes**:
-1. **Express Mode** - REST API with API key (simpler, recommended for dev)
-2. **Full Mode** - SDK with service account or ADC (production-grade)
-
-**Setup**:
-```bash
-gimage auth vertex  # Interactive wizard offers both modes
-```
-
-**Models**:
-- `imagen-3.0-generate-002` (Imagen 3)
-- `imagen-4` (latest, highest quality, up to 2048x2048)
-
-#### Express Mode (REST API)
-
-**Implementation**: `vertex_rest.go`
-
-**Authentication**:
-- API key via `VERTEX_API_KEY` env var or config
-- Requires `VERTEX_PROJECT` and `VERTEX_LOCATION`
-
-**Usage**:
-```go
-apiKey, err := config.GetVertexAPIKey("")
-project := os.Getenv("VERTEX_PROJECT") // or from config
-location := "us-central1"
-
-client, err := generate.NewVertexRESTClient(apiKey, project, location)
-defer client.Close()
-
-img, err := client.GenerateImage(ctx, prompt, options)
-```
-
-#### Full Mode (SDK)
-
-**Implementation**: `vertex_sdk.go`
-
-**Authentication Options**:
-1. Service account JSON via `GOOGLE_APPLICATION_CREDENTIALS`
-2. Application Default Credentials (`gcloud auth application-default login`)
-
-**Usage**:
-```go
-project := os.Getenv("VERTEX_PROJECT")
-location := "us-central1"
-
-client, err := generate.NewVertexSDKClient(ctx, project, location)
-defer client.Close()
-
-img, err := client.GenerateImage(ctx, prompt, options)
-```
-
-### AWS Bedrock Backend
-
-**Two Implementation Modes**:
-1. **REST Mode** - Direct REST API with access keys (simpler, explicit credentials)
-2. **SDK Mode** - AWS SDK with credential chain (production-grade, supports IAM roles)
-
-**Setup**:
-```bash
-gimage auth bedrock  # Interactive wizard offers both modes
-```
-
-**Models**:
-- `amazon.nova-canvas-v1:0` (Nova Canvas, latest, up to 1408x1408)
-
-**Features**:
-- Text-to-image generation with quality presets (standard, premium)
-- Advanced controls: negative prompts, CFG scale, seed
-- Multiple sizes: 1024x1024, 1280x720, 720x1280, 768x1152, 1152x768, 1408x1408, 1173x640, 640x1173
-- Quality presets: standard (50 steps, $0.04/image) or premium (100 steps, $0.08/image)
-
-#### REST Mode
-
-**Implementation**: `bedrock_rest.go`
-
-**Authentication**:
-- AWS access key/secret via `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
-- Region via `AWS_REGION` env var or config
-
-**Usage**:
-```go
-region := os.Getenv("AWS_REGION") // or from config, default "us-east-1"
-accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-
-client, err := generate.NewBedrockRESTClient(region, accessKey, secretKey)
-defer client.Close()
-
-options := models.GenerateOptions{
-    Model: "amazon.nova-canvas-v1:0",
-    Size: "1024x1024",
-    Quality: "premium",  // or "standard"
-    Seed: 42,
-    CFGScale: 8.0,
-    NegativePrompt: "blurry, low quality",
-}
-img, err := client.GenerateImage(ctx, prompt, options)
-```
-
-#### SDK Mode
-
-**Implementation**: `bedrock_sdk.go`
-
-**Authentication Options**:
-1. Environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
-2. AWS credentials file: `~/.aws/credentials`
-3. IAM role (for EC2/ECS/Lambda)
-4. AWS SSO
-
-**Usage**:
-```go
-region := os.Getenv("AWS_REGION") // default "us-east-1"
-
-client, err := generate.NewBedrockSDKClient(ctx, region)
-defer client.Close()
-
-img, err := client.GenerateImage(ctx, prompt, options)
-```
-
-**IAM Permissions Required**:
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "bedrock:InvokeModel"
-      ],
-      "Resource": "arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0"
-    }
-  ]
-}
-```
-
-**Pricing**:
-- Standard quality (50 steps): $0.04 per image
-- Premium quality (100 steps): $0.08 per image
-
-**Regional Availability**:
-- us-east-1 (N. Virginia) - Recommended
-- us-west-2 (Oregon)
-- Check AWS Bedrock console for latest regions
-
-### Adding New Backends
-
-When adding new image generation backends (e.g., Anthropic Claude, Stability AI, etc.):
-
-1. **Create new client file**: `internal/generate/newbackend_sdk.go` or `newbackend_rest.go`
-2. **Implement common interface**:
-   ```go
-   func NewBackendClient(ctx, cfg) (*BackendClient, error)
-   func (c *BackendClient) GenerateImage(ctx, prompt, options) (*GeneratedImage, error)
-   func (c *BackendClient) Close() error
-   ```
-3. **Add to model detection**: Update `generate.DetectAPIFromModel()`
-4. **Add auth setup**: Create `gimage auth newbackend` command in `internal/cli/auth.go`
-5. **Update docs**: Add to this section in CLAUDE.md and examples in MCP_TOOLS.md
-6. **Add tests**: Create `newbackend_test.go` for unit tests (request building, response parsing, validation)
-7. **Integration tests**: Add `newbackend_integration_test.go` with real API calls (manual only)
-8. **Update config**: Add new config keys to `internal/config/config.go` and `internal/config/auth.go`
-
-### Testing Strategy for Multi-Backend
-
-**CRITICAL: DO NOT MOCK CLOUD PROVIDER APIs**
-
-Mocking cloud provider APIs (AWS, Google, etc.) provides **zero value** and creates a false sense of security. Cloud providers change their APIs, error formats, rate limits, and behaviors regularly. Mocks become stale immediately and don't catch real-world issues.
-
-**What TO Test**:
-- ✅ Request payload building (validate JSON structure before sending)
-- ✅ Response parsing logic (with real example responses from docs)
-- ✅ Error message formatting and actionability
-- ✅ Input validation (dimensions, prompts, parameters)
-- ✅ Configuration loading and credential detection
-- ✅ CLI flag parsing and option handling
-
-**What NOT TO Test**:
-- ❌ Mocked API calls (worthless, creates false confidence)
-- ❌ Fake HTTP responses (providers change formats)
-- ❌ Simulated errors (real errors differ from assumptions)
-
-**Testing Approach**:
-
-1. **Unit Tests** - Test everything EXCEPT the actual API call:
-```go
-// ✅ GOOD: Test request building
-func TestBuildNovaCanvasRequest(t *testing.T) {
-    request := buildNovaCanvasRequest("test prompt", GenerateOptions{
-        Size: "1024x1024",
-        Seed: 42,
-    })
-
-    // Validate the JSON structure matches AWS docs
-    assert.Equal(t, "TEXT_IMAGE", request.TaskType)
-    assert.Equal(t, 1024, request.ImageGenerationConfig.Width)
-    assert.Equal(t, 42, request.ImageGenerationConfig.Seed)
-}
-
-// ✅ GOOD: Test response parsing with real example
-func TestParseNovaCanvasResponse(t *testing.T) {
-    // Use actual response from AWS documentation
-    realResponse := `{"images": ["iVBORw0KGgo..."], "error": null}`
-
-    result, err := parseNovaCanvasResponse([]byte(realResponse))
-    assert.NoError(t, err)
-    assert.NotEmpty(t, result.Images)
-}
-
-// ❌ BAD: Mocking the AWS SDK
-// type mockBedrockClient struct { ... }  // DON'T DO THIS
-```
-
-2. **Integration Tests** - Test against REAL APIs (manual only):
-```go
-// +build integration
-
-// These tests cost money and require real credentials
-// Run manually: go test -tags=integration ./internal/generate/...
-func TestBedrockRealAPI(t *testing.T) {
-    if os.Getenv("AWS_ACCESS_KEY_ID") == "" {
-        t.Skip("Real AWS credentials not configured")
-    }
-
-    client, _ := generate.NewBedrockSDKClient(ctx, "us-east-1")
-
-    // Real API call (costs $0.04)
-    img, err := client.GenerateImage(ctx, "simple test", GenerateOptions{})
-    assert.NoError(t, err)
-    assert.NotEmpty(t, img.Data)
-}
-```
-
-3. **Manual Testing** - Primary validation method:
-```bash
-# Test with real credentials (costs ~$0.04-0.20)
-gimage generate --api bedrock "test image" --verbose
-gimage generate --api vertex "test image" --verbose
-gimage generate --api gemini "test image" --verbose
-```
-
-**Why This Approach Works**:
-- Unit tests catch logic bugs without API calls
-- Integration tests validate real behavior (run manually before releases)
-- Manual testing is quick and catches UX issues
-- No maintenance burden of brittle mocks
-- Tests accurately reflect production behavior
-
-**Test File Structure**:
-```
-internal/generate/
-├── bedrock_sdk.go          # Implementation
-├── bedrock_request.go      # Request building (unit testable)
-├── bedrock_response.go     # Response parsing (unit testable)
-├── bedrock_test.go         # Unit tests (no API calls)
-└── bedrock_integration_test.go  # Real API tests (manual only)
-```
-
-### Configuration File Support
-
-All backends read from `~/.gimage/config.md`:
+Config file format (`~/.gimage/config.md`):
 ```markdown
-# Gemini Configuration
-**gemini_api_key**: AIzaSy...
-
-# Vertex AI Configuration
-**vertex_api_key**: AIzaSy...          # For Express Mode
-**vertex_project**: my-gcp-project
-**vertex_location**: us-central1
-**vertex_credentials_path**: ~/.gimage/credentials/sa.json  # For Full Mode
-
-# AWS Bedrock Configuration
-**aws_access_key_id**: AKIA...         # For REST Mode
-**aws_secret_access_key**: wJalr...    # For REST Mode
-**aws_region**: us-east-1              # For both modes
-
-# Default Backend
-**default_api**: gemini  # or "vertex" or "bedrock"
-```
-
-### Retry Logic (All Backends)
-- Max 3 retry attempts with exponential backoff
-- Initial backoff: 1 second, max: 10 seconds
-- Retryable errors: rate limits, timeouts, 503 errors
-- Non-retryable: invalid key, bad params, permission denied
-
-## MCP Server
-
-The CLI can run as an MCP server for Claude integration.
-
-### MCP Tools Exposed
-1. `generate_image` - Text-to-image generation
-2. `resize_image` - Resize to dimensions
-3. `scale_image` - Scale by factor
-4. `crop_image` - Crop region
-5. `compress_image` - Compress file
-6. `batch_process_images` - Batch operations
-7. `get_image_info` - Image metadata
-
-### Starting MCP Server
-```bash
-gimage serve
-```
-
-Configuration in `mcp-server.json` defines tool schemas.
-
-## Authentication & Configuration
-
-### Interactive Authentication Setup
-The CLI provides interactive authentication commands:
-
-```bash
-# Setup Gemini API (simple API key)
-gimage auth gemini
-
-# Setup Vertex AI (3 modes: Express API key, Service Account, or ADC)
-gimage auth vertex
-
-# Setup AWS Bedrock (2 modes: REST with access keys, or SDK with credential chain)
-gimage auth bedrock
-```
-
-These commands create/update `~/.gimage/config.md` with your credentials.
-
-### Configuration File Format
-Config file uses **markdown format** (not YAML/JSON) at `~/.gimage/config.md`:
-
-```markdown
-# Gimage Configuration
-
 **gemini_api_key**: AIzaSy...
 **vertex_api_key**: AIzaSy...
 **vertex_project**: your-project-id
 **vertex_location**: us-central1
-**vertex_credentials_path**: ~/.gimage/credentials/service-account.json
 **aws_access_key_id**: AKIA...
 **aws_secret_access_key**: wJalr...
 **aws_region**: us-east-1
 **default_api**: gemini
 **default_model**: gemini-2.5-flash-image
-**default_size**: 1024x1024
-**log_level**: info
 ```
-
-Format: `**key**: value` on each line. Comments start with `#`.
 
 ## Security & Best Practices
 
 ### Documentation and Dates
-- **ALWAYS use the system `date` command to get the current date** when creating or updating documentation
-- Never hardcode dates in documentation - they become outdated immediately
-- Use `date +%Y-%m-%d` for YYYY-MM-DD format (ISO 8601 standard)
-- When updating CHANGELOG.md, RELEASING.md, or any documentation with dates, run the date command first
-
-Example workflow:
-```bash
-# Get current date for documentation
-date +%Y-%m-%d
-# Output: 2025-11-01
-
-# Use this date in CHANGELOG.md entries
-## [0.2.0] - 2025-11-01
-```
-
-**Why this matters**: Hardcoded dates quickly become incorrect and make documentation confusing. Always fetch the current system date dynamically.
+- **ALWAYS use `date +%Y-%m-%d`** command for current date
+- Never hardcode dates in documentation
+- Use dynamic date retrieval for CHANGELOG.md and docs
 
 ### Credentials
-- Never log API keys or credentials
-- Config file automatically created with 0600 permissions (owner read/write only)
-- Use `gimage auth` commands instead of manually editing config
-- Use environment variables for CI/CD (override config file values)
+- Never log API keys
+- Config file created with 0600 permissions
+- Use `gimage auth` commands instead of manual editing
+- Use environment variables for CI/CD
 
 ### Code Quality
 - Follow Go idioms and conventions
 - Keep functions small and focused
-- Use golangci-lint for linting
-- Document all public APIs with godoc comments
+- Use golangci-lint
+- Document all public APIs with godoc
 
-### Performance
-- Leverage Go's concurrency for batch operations
-- Default to 4 parallel workers (configurable)
-- Profile before optimizing
-- Monitor memory usage for large images
-
-## Common Development Patterns
+## Common Patterns
 
 ### Loading and Saving Images
 ```go
-// Always use imaging package
 img, err := imaging.Open(inputPath)
 if err != nil {
     return fmt.Errorf("failed to open image: %w", err)
 }
 
-// Process image
 result := imaging.Resize(img, width, height, imaging.Lanczos)
-
-// Save with format detection
 err = imaging.Save(result, outputPath)
 ```
 
 ### Concurrent Processing
 ```go
-// Use worker pool pattern for batch operations
 workers := runtime.NumCPU()
 sem := make(chan struct{}, workers)
 var wg sync.WaitGroup
@@ -661,46 +225,62 @@ wg.Wait()
 
 ## Git Usage Policy
 
-**IMPORTANT**: Do NOT use git commands (commit, push, tag, etc.) unless the user explicitly asks for it.
+**IMPORTANT**: Do NOT use git commands unless user explicitly asks.
 
-**Examples of when NOT to use git**:
-- After creating or modifying files
-- After completing a feature implementation
-- After fixing bugs or making improvements
-- When you think "this should be committed"
+**Do NOT**:
+- Auto-commit after creating/modifying files
+- Auto-commit after completing features
+- Auto-commit when you think "this should be committed"
 
-**Examples of when TO use git**:
-- User says "commit this"
-- User says "push to GitHub"
-- User says "create a git tag"
-- User explicitly requests git operations in their message
+**DO**:
+- Only when user says "commit this"
+- Only when user says "push to GitHub"
+- Only when user explicitly requests git operations
 
-**Why**: The user controls when and how code is committed. Automatic commits can:
-- Interrupt their workflow
-- Create unwanted commit history
-- Commit incomplete or experimental changes
-- Bypass their review process
-
-If you complete work and think it should be committed, simply inform the user what was done and let them decide whether to commit.
+**Why**: User controls when and how code is committed. Automatic commits interrupt workflow and create unwanted history.
 
 ## Release Process
 
 1. Update version in code
-2. Run full test suite: `make test`
+2. Run `make test`
 3. Build all platforms: `make build-all`
-4. Create git tag: `git tag v1.x.x` (only when user requests)
+4. Create tag: `git tag v1.x.x` (only when user requests)
 5. GitHub Actions handles release automation
 
-## Implementation Phases
+## Lambda Deployment
 
-Reference `IMAGE_CLI_PLAN.md` for detailed implementation prompts:
-- Phase 1: Project initialization
-- Phase 2: Image processing core
-- Phase 3: Gemini API integration
-- Phase 4: Vertex AI integration
-- Phase 5: CLI commands
-- Phase 6: Configuration system
-- Phase 7: Testing suite
-- Phase 8: Documentation
-- Phase 9: MCP server
-- Phase 10: Build & distribution
+Deploy as serverless REST API on AWS Lambda:
+
+```bash
+make build-lambda      # Build for ARM64/Graviton2
+make package-lambda    # Create deployment zip
+cd infrastructure/cdk && cdk deploy
+```
+
+See `lambda.md` for complete guide.
+
+## Documentation Structure
+
+- **README.md** - Main project overview
+- **COMMANDS.md** - Full CLI command reference
+- **lambda.md** - Lambda deployment guide
+- **INTEGRATION_GUIDE.md** - API client examples
+- **TESTING.md** - Testing documentation
+- **mcp.md** - MCP server overview
+- **docs/MCP_TOOLS.md** - Complete MCP tools reference (for LLMs)
+- **docs/MCP_USAGE.md** - Primary MCP user guide (for LLMs)
+- **docs/MCP_EXAMPLES.md** - Real-world MCP examples (for LLMs)
+
+## Implementation Priorities
+
+Core development phases:
+1. Project initialization
+2. Image processing core
+3. AI API integrations (Gemini → Vertex → Bedrock)
+4. CLI commands
+5. Configuration system
+6. Testing suite
+7. Documentation
+8. MCP server
+9. Lambda deployment
+10. Distribution (Homebrew, npm)

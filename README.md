@@ -462,19 +462,11 @@ For comprehensive guides and examples:
 
 ## Command Reference
 
-| Command | Description |
-|---------|-------------|
-| `generate` | Generate images from text using AI |
-| `resize` | Resize images to specific dimensions |
-| `scale` | Scale images by factor |
-| `crop` | Crop images to regions |
-| `compress` | Compress images to reduce file size |
-| `convert` | Convert between image formats |
-| `batch` | Batch process multiple images |
-| `auth` | Configure API credentials |
-| `config` | Manage configuration |
+See [COMMANDS.md](COMMANDS.md) for complete command reference and detailed usage examples.
 
-Run `gimage [command] --help` for detailed usage.
+**Quick command list**: `generate`, `resize`, `scale`, `crop`, `compress`, `convert`, `batch`, `auth`, `config`, `serve`
+
+Run `gimage [command] --help` for detailed usage of any command.
 
 ---
 
@@ -492,8 +484,6 @@ Deploy Gimage as a serverless REST API on AWS Lambda for web application integra
 
 ### Quick Deploy
 
-**Get deployed in under 1 hour!** See [QUICK_START_LAMBDA.md](QUICK_START_LAMBDA.md)
-
 ```bash
 # Build Lambda function
 make build-lambda
@@ -505,7 +495,7 @@ make package-lambda
 make deploy-lambda
 ```
 
-Or follow the complete step-by-step guide in [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)
+See [lambda.md](lambda.md) for complete deployment guide.
 
 ### API Endpoints
 
@@ -569,12 +559,9 @@ result, err := client.GenerateImage(gimage.GenerateRequest{
 
 ### Documentation
 
-- **Quick Start**: [QUICK_START_LAMBDA.md](QUICK_START_LAMBDA.md) - Deploy in under 1 hour
-- **Deployment Checklist**: [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) - Step-by-step deployment
-- **OpenAPI Spec**: [openapi.yaml](openapi.yaml) - Complete API reference
+- **Deployment Guide**: [lambda.md](lambda.md) - Complete deployment and infrastructure setup
 - **Integration Guide**: [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) - Client SDKs & examples
-- **Deployment Plan**: [lambda.md](lambda.md) - Complete infrastructure setup
-- **Status**: [LAMBDA_STATUS.md](LAMBDA_STATUS.md) - Implementation status
+- **OpenAPI Spec**: [openapi.yaml](openapi.yaml) - Complete API reference
 
 ### Architecture
 
