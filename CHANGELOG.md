@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.50] - 2025-11-05
+
+### Changed
+- Updated Go dependencies to resolve test compatibility issues
+
+
 ## [1.1.48] - 2025-11-05
 
 ### Fixed
