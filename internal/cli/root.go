@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/apresai/gimage/internal/config"
+	"github.com/apresai/gimage/internal/generate"
+	"github.com/apresai/gimage/internal/logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -153,10 +156,20 @@ For more information, visit: https://github.com/apresai/gimage`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	// Initialize logging
+	logger := logging.GetLogger()
+	if logger.IsEnabled() {
+		logAuthStatus(logger)
+	}
+
 	err := rootCmd.Execute()
 	if err != nil {
+		logger.LogError("Command execution failed: %v", err)
 		os.Exit(1)
 	}
+
+	// Close logger on exit
+	logger.Close()
 }
 
 func init() {
@@ -194,5 +207,42 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil && viper.GetBool("verbose") {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	}
+}
+
+// logAuthStatus logs which LLM authentication methods are available
+func logAuthStatus(logger *logging.Logger) {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		logger.LogWarn("Failed to load config for auth status check: %v", err)
+		return
+	}
+
+	// Check Gemini auth
+	if cfg.GeminiAPIKey != "" {
+		logger.LogAuthStatus("Gemini", true, "API key configured")
+	} else {
+		logger.LogAuthStatus("Gemini", false, "No API key configured")
+	}
+
+	// Check Vertex auth
+	if cfg.VertexAPIKey != "" || cfg.VertexProject != "" {
+		logger.LogAuthStatus("Vertex AI", true, fmt.Sprintf("Project: %s, Location: %s", cfg.VertexProject, cfg.VertexLocation))
+	} else {
+		logger.LogAuthStatus("Vertex AI", false, "No credentials configured")
+	}
+
+	// Check Bedrock auth
+	if cfg.AWSAccessKeyID != "" && cfg.AWSSecretAccessKey != "" {
+		logger.LogAuthStatus("AWS Bedrock", true, fmt.Sprintf("Region: %s", cfg.AWSRegion))
+	} else {
+		logger.LogAuthStatus("AWS Bedrock", false, "No credentials configured")
+	}
+
+	// Log available models
+	logger.LogInfo("Available models:")
+	for _, m := range generate.AvailableModels() {
+		api, _ := generate.DetectAPIFromModel(m.Name)
+		logger.LogInfo("  - %s (API: %s, Free: %v)", m.Name, api, m.Pricing.FreeTier)
 	}
 }

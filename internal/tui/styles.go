@@ -79,6 +79,14 @@ var (
 			Italic(true).
 			Padding(1, 0)
 
+	// CodeBlockStyle for code blocks
+	CodeBlockStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("#1e1e1e")).
+			Foreground(lipgloss.Color("#00FF88")).
+			Padding(1, 2).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(ColorMuted)
+
 	// StatusBarStyle for the bottom status bar
 	StatusBarStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFFFFF")).

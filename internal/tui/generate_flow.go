@@ -11,6 +11,7 @@ import (
 
 	"github.com/apresai/gimage/internal/config"
 	"github.com/apresai/gimage/internal/generate"
+	"github.com/apresai/gimage/internal/logging"
 	"github.com/apresai/gimage/pkg/models"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -28,7 +29,9 @@ const (
 	StepSize
 	StepStyle
 	StepOutput
+	StepCommand  // Show command preview before generating
 	StepProgress
+	StepModelRetry  // NEW: Select a different model if first one fails
 	StepResult
 )
 
@@ -83,16 +86,27 @@ type GenerateFlowModel struct {
 	// Step 5: Output path
 	outputInput textinput.Model
 
-	// Step 6: Progress
+	// Step 6: Command preview
+	commandStr string
+
+	// Step 7: Progress
 	progressBar progress.Model
 	progressMsg string
 	generating  bool
 
-	// Step 7: Result
+	// Step 8: Result
 	resultPath     string
 	resultSize     int64
 	generationTime time.Duration
 	err            error
+
+	// Model retry state
+	retryModels           []modelOption
+	selectedRetryModel    int
+	customModelInput      textinput.Model
+	showCustomModelInput  bool
+	lastGenerationError   string
+	modelRetryInput       textinput.Model
 
 	// Error context for retry
 	errorContext struct {
@@ -169,19 +183,28 @@ func NewGenerateFlowModel() *GenerateFlowModel {
 		{"anime", "Anime", "Anime and manga style"},
 	}
 
+	// Initialize model retry input
+	modelRetryInput := textinput.New()
+	modelRetryInput.Placeholder = "e.g., imagen-4, nova-canvas, or full model ID"
+	modelRetryInput.CharLimit = 100
+	modelRetryInput.Width = 70
+
 	return &GenerateFlowModel{
-		currentStep:    StepPrompt,
-		promptTextarea: ta,
-		models:         modelOpts,
-		selectedModel:  0,
-		sizes:          sizeOpts,
-		selectedSize:   0,
-		customWidth:    widthInput,
-		customHeight:   heightInput,
-		styles:         styleOpts,
-		selectedStyle:  0,
-		outputInput:    outputInput,
-		progressBar:    prog,
+		currentStep:       StepPrompt,
+		promptTextarea:    ta,
+		models:            modelOpts,
+		selectedModel:     0,
+		sizes:             sizeOpts,
+		selectedSize:      0,
+		customWidth:       widthInput,
+		customHeight:      heightInput,
+		styles:            styleOpts,
+		selectedStyle:     0,
+		outputInput:       outputInput,
+		progressBar:       prog,
+		modelRetryInput:   modelRetryInput,
+		retryModels:       modelOpts,
+		selectedRetryModel: 0,
 	}
 }
 
@@ -234,7 +257,17 @@ func (m *GenerateFlowModel) Update(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
 		m.resultSize = msg.size
 		m.generationTime = msg.duration
 		m.err = msg.err
-		m.currentStep = StepResult
+		m.lastGenerationError = ""
+		if msg.err != nil {
+			m.lastGenerationError = msg.err.Error()
+			// Go to model retry step if generation failed
+			m.currentStep = StepModelRetry
+			// Log the failure
+			logger := logging.GetLogger()
+			logger.LogError("Generation failed with model %s: %v", m.models[m.selectedModel].name, msg.err)
+		} else {
+			m.currentStep = StepResult
+		}
 		return m, nil
 	}
 
@@ -250,6 +283,8 @@ func (m *GenerateFlowModel) Update(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
 		return m.updateStyleStep(msg)
 	case StepOutput:
 		return m.updateOutputStep(msg)
+	case StepCommand:
+		return m.updateCommandStep(msg)
 	case StepProgress:
 		// Update progress bar - convert the model back to progress.Model
 		var progModel tea.Model
@@ -257,6 +292,8 @@ func (m *GenerateFlowModel) Update(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
 		m.progressBar = progModel.(progress.Model)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
+	case StepModelRetry:
+		return m.updateModelRetryStep(msg)
 	case StepResult:
 		return m.updateResultStep(msg)
 	}
@@ -281,8 +318,12 @@ func (m *GenerateFlowModel) View() string {
 		return m.viewStyleStep()
 	case StepOutput:
 		return m.viewOutputStep()
+	case StepCommand:
+		return m.viewCommandStep()
 	case StepProgress:
 		return m.viewProgressStep()
+	case StepModelRetry:
+		return m.viewModelRetryStep()
 	case StepResult:
 		return m.viewResultStep()
 	default:
@@ -329,7 +370,7 @@ func (m *GenerateFlowModel) viewPromptStep() string {
 	charCount := len(m.promptTextarea.Value())
 	charLimit := m.promptTextarea.CharLimit
 
-	content := TitleStyle.Render("Generate Image - Step 1/6") + "\n\n" +
+	content := TitleStyle.Render("Generate Image - Step 1/7") + "\n\n" +
 		SubtitleStyle.Render("Describe the image you want to generate") + "\n\n" +
 		m.promptTextarea.View() + "\n\n" +
 		MutedStyle.Render(fmt.Sprintf("Characters: %d/%d", charCount, charLimit)) + "\n\n" +
@@ -399,7 +440,7 @@ func (m *GenerateFlowModel) viewModelStep() string {
 		items = append(items, title+"\n"+desc+"\n"+cost)
 	}
 
-	content := TitleStyle.Render("Generate Image - Step 2/6") + "\n\n" +
+	content := TitleStyle.Render("Generate Image - Step 2/7") + "\n\n" +
 		SubtitleStyle.Render("Select AI Model") + "\n\n" +
 		strings.Join(items, "\n\n") + "\n\n" +
 		HelpStyle.Render("↑/↓: Navigate • Enter: Select • Esc: Back")
@@ -510,7 +551,7 @@ func (m *GenerateFlowModel) viewSizeStep() string {
 			}
 		}
 
-		content := TitleStyle.Render("Generate Image - Step 3/6") + "\n\n" +
+		content := TitleStyle.Render("Generate Image - Step 3/7") + "\n\n" +
 			SubtitleStyle.Render("Select Image Size") + "\n\n" +
 			strings.Join(items, "\n\n") + "\n\n" +
 			HelpStyle.Render("↑/↓: Navigate • Enter: Select • Esc: Back")
@@ -527,7 +568,7 @@ func (m *GenerateFlowModel) viewSizeStep() string {
 	}
 
 	// Custom size input view
-	content := TitleStyle.Render("Generate Image - Step 3/6") + "\n\n" +
+	content := TitleStyle.Render("Generate Image - Step 3/7") + "\n\n" +
 		SubtitleStyle.Render("Enter Custom Size") + "\n\n" +
 		FormatKeyValue("Width", m.customWidth.View()) + "\n\n" +
 		FormatKeyValue("Height", m.customHeight.View()) + "\n\n" +
@@ -585,7 +626,7 @@ func (m *GenerateFlowModel) viewStyleStep() string {
 		items = append(items, title+"\n"+desc)
 	}
 
-	content := TitleStyle.Render("Generate Image - Step 4/6") + "\n\n" +
+	content := TitleStyle.Render("Generate Image - Step 4/7") + "\n\n" +
 		SubtitleStyle.Render("Select Image Style (Optional)") + "\n\n" +
 		strings.Join(items, "\n\n") + "\n\n" +
 		HelpStyle.Render("↑/↓: Navigate • Enter: Select • Esc: Back")
@@ -608,8 +649,10 @@ func (m *GenerateFlowModel) updateOutputStep(msg tea.Msg) (*GenerateFlowModel, t
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
 		case "enter":
-			// Start generation
-			return m, m.startGeneration()
+			// Build and show command preview
+			m.buildCommand()
+			m.currentStep = StepCommand
+			return m, nil
 		}
 	}
 
@@ -626,7 +669,7 @@ func (m *GenerateFlowModel) viewOutputStep() string {
 		m.outputInput.SetValue(defaultPath)
 	}
 
-	content := TitleStyle.Render("Generate Image - Step 5/6") + "\n\n" +
+	content := TitleStyle.Render("Generate Image - Step 5/7") + "\n\n" +
 		SubtitleStyle.Render("Specify Output Path") + "\n\n" +
 		"Output file: " + m.outputInput.View() + "\n\n" +
 		MutedStyle.Render("The image will be saved to this location") + "\n\n" +
@@ -643,11 +686,83 @@ func (m *GenerateFlowModel) viewOutputStep() string {
 	)
 }
 
-// Step 6: Progress
+// Step 6: Command Preview
+func (m *GenerateFlowModel) buildCommand() {
+	// Build the size string
+	var size string
+	if m.useCustom {
+		size = fmt.Sprintf("%sx%s", m.customWidth.Value(), m.customHeight.Value())
+	} else {
+		size = m.sizes[m.selectedSize].size
+	}
+
+	// Quote the prompt properly for shell
+	prompt := strings.ReplaceAll(m.promptTextarea.Value(), "\"", "\\\"")
+
+	// Build command
+	cmdParts := []string{
+		fmt.Sprintf("gimage generate \"%s\"", prompt),
+		fmt.Sprintf("--model %s", m.models[m.selectedModel].name),
+		fmt.Sprintf("--size %s", size),
+	}
+
+	// Add style if not "None"
+	if m.styles[m.selectedStyle].value != "" {
+		cmdParts = append(cmdParts, fmt.Sprintf("--style %s", m.styles[m.selectedStyle].value))
+	}
+
+	// Add output path
+	cmdParts = append(cmdParts, fmt.Sprintf("--output %s", m.outputInput.Value()))
+
+	m.commandStr = strings.Join(cmdParts, " \\\n  ")
+}
+
+func (m *GenerateFlowModel) updateCommandStep(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.String() {
+		case "enter":
+			// Proceed to generation
+			return m, m.startGeneration()
+		case "c":
+			// Copy command to clipboard (note: might not work in all terminals)
+			// For now, we'll just show the command and let the user copy it manually
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+func (m *GenerateFlowModel) viewCommandStep() string {
+	// Display API that will be used
+	api, _ := generate.DetectAPIFromModel(m.models[m.selectedModel].name)
+	apiDisplay := strings.ToUpper(api)
+
+	content := TitleStyle.Render("Generate Image - Step 6/7") + "\n\n" +
+		SubtitleStyle.Render("Verify Your Command") + "\n\n" +
+		FormatKeyValue("API", apiDisplay) + "\n" +
+		FormatKeyValue("Model", m.models[m.selectedModel].displayName) + "\n\n" +
+		MutedStyle.Render("Equivalent CLI Command:") + "\n\n" +
+		CodeBlockStyle.Render(m.commandStr) + "\n\n" +
+		WarningStyle.Render("You can copy this command and run it manually:") + "\n" +
+		MutedStyle.Render("  $ "+strings.ReplaceAll(m.commandStr, "\n", "\n  $ ")) + "\n\n" +
+		HelpStyle.Render("Enter: Generate • Esc: Back")
+
+	box := FocusedBoxStyle.Width(76).Render(content)
+
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		box,
+	)
+}
+
+// Step 7: Progress
 func (m *GenerateFlowModel) viewProgressStep() string {
 	spinner := SpinnerFrames[int(time.Now().Unix())%len(SpinnerFrames)]
 
-	content := TitleStyle.Render("Generate Image - Step 6/6") + "\n\n" +
+	content := TitleStyle.Render("Generate Image - Step 7/7") + "\n\n" +
 		SubtitleStyle.Render("Generating...") + "\n\n" +
 		SuccessStyle.Render(spinner) + " " + m.progressMsg + "\n\n" +
 		m.progressBar.View() + "\n\n" +
@@ -796,6 +911,251 @@ func (m *GenerateFlowModel) renderHelp() string {
 	)
 }
 
+// Step 8: Model Retry
+func (m *GenerateFlowModel) updateModelRetryStep(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.String() {
+		case "up", "k":
+			// Navigate up in model list
+			if m.selectedRetryModel > 0 {
+				m.selectedRetryModel--
+			}
+			return m, nil
+
+		case "down", "j":
+			// Navigate down in model list
+			if m.selectedRetryModel < len(m.retryModels) {
+				m.selectedRetryModel++
+			}
+			return m, nil
+
+		case "enter":
+			if m.selectedRetryModel < len(m.retryModels) {
+				// Selected a model from the grid
+				selectedModel := m.retryModels[m.selectedRetryModel]
+
+				// Find the index in the main models list
+				for i, m2 := range m.models {
+					if m2.name == selectedModel.name {
+						m.selectedModel = i
+						break
+					}
+				}
+
+				// Log the retry
+				logger := logging.GetLogger()
+				logger.LogInfo("User selected model %s for retry after previous failure", selectedModel.displayName)
+
+				// Rebuild command and go to generation
+				m.buildCommand()
+				m.currentStep = StepCommand
+				return m, nil
+			} else if m.showCustomModelInput {
+				// User entered a custom model
+				customModel := m.modelRetryInput.Value()
+				if customModel != "" {
+					m.selectedModel = 0 // Will be overridden in generation
+
+					// Try to resolve the model
+					if resolvedName, err := resolveCustomModelName(customModel); err == nil {
+						// Create a temporary model option for the custom model
+						tempModel := modelOption{
+							name:        resolvedName,
+							displayName: customModel,
+							description: "Custom model",
+							cost:        "?",
+							free:        false,
+						}
+
+						// Add to models list if not already there
+						found := false
+						for _, m2 := range m.models {
+							if m2.name == resolvedName {
+								found = true
+								m.selectedModel = len(m.models) - 1
+								break
+							}
+						}
+
+						if !found {
+							m.models = append(m.models, tempModel)
+							m.selectedModel = len(m.models) - 1
+						}
+
+						// Log the custom model selection
+						logger := logging.GetLogger()
+						logger.LogInfo("User selected custom model: %s (resolved to %s)", customModel, resolvedName)
+
+						// Rebuild command and go to generation
+						m.buildCommand()
+						m.currentStep = StepCommand
+						return m, nil
+					} else {
+						logger := logging.GetLogger()
+						logger.LogError("Failed to resolve custom model: %s", customModel)
+					}
+				}
+			}
+
+		case "c":
+			// Show custom model input
+			m.showCustomModelInput = !m.showCustomModelInput
+			if m.showCustomModelInput {
+				m.modelRetryInput.Focus()
+				m.modelRetryInput.SetValue("")
+			}
+			return m, nil
+
+		case "esc":
+			// Go back to result step
+			m.currentStep = StepResult
+			return m, nil
+		}
+	}
+
+	// If custom input is active, let the input handle it
+	if m.showCustomModelInput {
+		var cmd tea.Cmd
+		m.modelRetryInput, cmd = m.modelRetryInput.Update(msg)
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+func (m *GenerateFlowModel) viewModelRetryStep() string {
+	// Build model grid
+	gridContent := m.renderModelGrid()
+
+	content := TitleStyle.Render("Generation Failed - Select Another Model") + "\n\n" +
+		ErrorStyle.Render("✗ "+m.lastGenerationError) + "\n\n" +
+		SubtitleStyle.Render("Choose a different model to retry:") + "\n\n" +
+		gridContent + "\n\n"
+
+	if m.showCustomModelInput {
+		content += SubtitleStyle.Render("Or enter a custom model name:") + "\n" +
+			"Model: " + m.modelRetryInput.View() + "\n\n" +
+			MutedStyle.Render("(press Enter to submit, Esc to cancel)") + "\n\n"
+	} else {
+		content += HelpStyle.Render("↑/k: Up • ↓/j: Down • Enter: Select • c: Custom Model • Esc: Back")
+	}
+
+	box := FocusedBoxStyle.Width(80).Render(content)
+
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		box,
+	)
+}
+
+func (m *GenerateFlowModel) renderModelGrid() string {
+	// Create a table showing models with their details
+	rows := []string{}
+
+	// Add column headers
+	headerRow := fmt.Sprintf(
+		"%-4s | %-20s | %-8s | %-10s | %s",
+		"  #", "Model", "Price", "Auth", "Description",
+	)
+	rows = append(rows, HeaderStyle.Render(headerRow))
+	rows = append(rows, strings.Repeat("─", 80))
+
+	// Add model rows
+	cfg, _ := config.LoadConfig()
+	for i, model := range m.retryModels {
+		// Determine if auth is available
+		api, _ := generate.DetectAPIFromModel(model.name)
+		authStatus := "✗"
+		switch api {
+		case "gemini":
+			if cfg.GeminiAPIKey != "" {
+				authStatus = "✓"
+			}
+		case "vertex":
+			if cfg.VertexAPIKey != "" {
+				authStatus = "✓"
+			}
+		case "bedrock":
+			if cfg.AWSAccessKeyID != "" && cfg.AWSSecretAccessKey != "" {
+				authStatus = "✓"
+			}
+		}
+
+		// Mark selected row
+		prefix := "  "
+		if i == m.selectedRetryModel && !m.showCustomModelInput {
+			prefix = "→ "
+		}
+
+		desc := model.description
+		if len(desc) > 35 {
+			desc = desc[:32] + "..."
+		}
+
+		rowStr := fmt.Sprintf(
+			"%s%d | %-20s | %-8s | %-10s | %s",
+			prefix,
+			i+1,
+			truncateString(model.displayName, 20),
+			model.cost,
+			authStatus,
+			desc,
+		)
+
+		rows = append(rows, rowStr)
+	}
+
+	return strings.Join(rows, "\n")
+}
+
+// Helper function to resolve custom model names
+func resolveCustomModelName(input string) (string, error) {
+	// Try exact match first
+	if info, err := generate.GetModelInfo(input); err == nil {
+		return info.Name, nil
+	}
+
+	// Try alias resolution
+	if resolvedName := generate.ResolveModelName(input); resolvedName != input {
+		if info, err := generate.GetModelInfo(resolvedName); err == nil {
+			return info.Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("unknown model: %s", input)
+}
+
+// buildCLICommand builds the equivalent CLI command for logging and reproducibility
+func (m *GenerateFlowModel) buildCLICommand(prompt string, model string, size string, style string, output string) string {
+	// Quote the prompt properly for shell
+	quotedPrompt := strings.ReplaceAll(prompt, "\"", "\\\"")
+
+	// Build command
+	cmdParts := []string{
+		fmt.Sprintf("gimage generate \"%s\"", quotedPrompt),
+		fmt.Sprintf("--model %s", model),
+		fmt.Sprintf("--size %s", size),
+	}
+
+	// Add style if not "None"
+	if style != "" {
+		cmdParts = append(cmdParts, fmt.Sprintf("--style %s", style))
+	}
+
+	// Add output path
+	cmdParts = append(cmdParts, fmt.Sprintf("--output %s", output))
+
+	return strings.Join(cmdParts, " \\\n  ")
+}
+
+// HeaderStyle for table headers
+var HeaderStyle = lipgloss.NewStyle().
+	Foreground(ColorSecondary).
+	Bold(true)
+
 // startGeneration begins the image generation process
 func (m *GenerateFlowModel) startGeneration() tea.Cmd {
 	m.currentStep = StepProgress
@@ -819,6 +1179,7 @@ func (m *GenerateFlowModel) tickProgress() tea.Cmd {
 func (m *GenerateFlowModel) generateImageCmd() tea.Cmd {
 	return func() tea.Msg {
 		startTime := time.Now()
+		logger := logging.GetLogger()
 
 		// Build the size string
 		var size string
@@ -829,12 +1190,19 @@ func (m *GenerateFlowModel) generateImageCmd() tea.Cmd {
 		}
 
 		// Build options
+		modelName := m.models[m.selectedModel].name
+		logger.LogDebug("TUI: Selected model index=%d, name=%q, displayName=%q",
+			m.selectedModel, modelName, m.models[m.selectedModel].displayName)
+
 		options := models.GenerateOptions{
-			Model:          m.models[m.selectedModel].name,
+			Model:          modelName,
 			Size:           size,
 			Style:          m.styles[m.selectedStyle].value,
 			NegativePrompt: "", // Could add in future
 		}
+
+		logger.LogDebug("TUI: Options built - Model=%q, Size=%q, Style=%q",
+			options.Model, options.Size, options.Style)
 
 		// Save error context for potential retry
 		m.errorContext.prompt = m.promptTextarea.Value()
@@ -842,6 +1210,21 @@ func (m *GenerateFlowModel) generateImageCmd() tea.Cmd {
 		m.errorContext.size = size
 		m.errorContext.style = m.styles[m.selectedStyle].label
 		m.errorContext.output = m.outputInput.Value()
+
+		// Build equivalent CLI command for logging and reproducibility
+		cliCommand := m.buildCLICommand(m.promptTextarea.Value(), options.Model, size, options.Style, m.outputInput.Value())
+
+		// Log generation start
+		api, _ := generate.DetectAPIFromModel(options.Model)
+		logger.LogGenerateStart(
+			m.promptTextarea.Value(),
+			options.Model,
+			api,
+			size,
+			options.Style,
+			m.outputInput.Value(),
+		)
+		logger.LogGenerateCommand(cliCommand)
 
 		// Send progress updates
 		go func() {
@@ -852,64 +1235,112 @@ func (m *GenerateFlowModel) generateImageCmd() tea.Cmd {
 		// Load config
 		cfg, err := config.LoadConfig()
 		if err != nil {
-			return generationCompleteMsg{err: fmt.Errorf("failed to load config: %w", err)}
+			errMsg := fmt.Sprintf("failed to load config: %v", err)
+			logger.LogError("%s", errMsg)
+			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
 		}
 
 		// Detect API from model
-		api, err := generate.DetectAPIFromModel(options.Model)
+		logger.LogDebug("TUI: About to detect API for model: %q", options.Model)
+		logger.LogDebug("TUI: Model bytes: %x", []byte(options.Model))
+
+		api, err = generate.DetectAPIFromModel(options.Model)
 		if err != nil {
-			return generationCompleteMsg{err: fmt.Errorf("failed to detect API: %w", err)}
+			errMsg := fmt.Sprintf("failed to detect API from model %s: %v", options.Model, err)
+			logger.LogError("%s", errMsg)
+			logger.LogDebug("TUI: API detection failed - model=%q, error=%v", options.Model, err)
+			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
 		}
+
+		logger.LogDebug("TUI: API detected successfully: %q for model %q", api, options.Model)
 
 		ctx := context.Background()
 
 		// Generate image based on API
+		logger.LogDebug("TUI: About to switch on API=%q", api)
+		logger.LogDebug("TUI: Config loaded - GeminiAPIKey length=%d", len(cfg.GeminiAPIKey))
+
 		var result *models.GeneratedImage
 		switch api {
 		case "gemini":
-			client, err := generate.NewGeminiClient(cfg.GeminiAPIKey)
+			logger.LogInfo("Creating Gemini REST client...")
+			logger.LogDebug("TUI: Inside gemini case - about to create REST client with key length=%d", len(cfg.GeminiAPIKey))
+			// Use REST client instead of SDK client (SDK has a bug with image generation)
+			client, err := generate.NewGeminiRESTClient(cfg.GeminiAPIKey)
 			if err != nil {
-				return generationCompleteMsg{err: fmt.Errorf("failed to create client: %w", err)}
+				errMsg := fmt.Sprintf("failed to create Gemini REST client: %v", err)
+				logger.LogError("%s", errMsg)
+				return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
 			}
 			defer client.Close()
 
+			logger.LogInfo("Calling Gemini REST API for image generation...")
 			result, err = client.GenerateImage(ctx, m.promptTextarea.Value(), options)
 			if err != nil {
-				return generationCompleteMsg{err: fmt.Errorf("generation failed: %w", err)}
+				errMsg := fmt.Sprintf("Gemini API generation failed: %v", err)
+				logger.LogError("%s", errMsg)
+				logger.LogErrorContext("Gemini Generation Error", err, map[string]string{
+					"model":  options.Model,
+					"size":   size,
+					"prompt": m.promptTextarea.Value(),
+					"api":    api,
+				})
+				return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
 			}
+			logger.LogInfo("Gemini API returned successfully")
 
 		case "vertex":
 			// TODO: Implement vertex support
-			return generationCompleteMsg{err: fmt.Errorf("vertex API not yet supported in TUI")}
+			errMsg := "Vertex AI not yet supported in TUI"
+			logger.LogWarn("%s", errMsg)
+			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
 
 		case "bedrock":
 			// TODO: Implement bedrock support
-			return generationCompleteMsg{err: fmt.Errorf("bedrock API not yet supported in TUI")}
+			errMsg := "AWS Bedrock not yet supported in TUI"
+			logger.LogWarn("%s", errMsg)
+			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
 
 		default:
-			return generationCompleteMsg{err: fmt.Errorf("unknown API: %s", api)}
+			errMsg := fmt.Sprintf("unknown API: %s", api)
+			logger.LogError("%s", errMsg)
+			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
 		}
 
 		// Save the generated image to disk
 		outputPath := m.outputInput.Value()
+		logger.LogInfo("Saving image to %s", outputPath)
 		if err := generate.SaveImage(result, outputPath); err != nil {
-			return generationCompleteMsg{err: fmt.Errorf("failed to save image: %w", err)}
+			errMsg := fmt.Sprintf("failed to save image: %v", err)
+			logger.LogError("%s", errMsg)
+			logger.LogErrorContext("Image Save Error", err, map[string]string{
+				"output_path": outputPath,
+				"model":       options.Model,
+			})
+			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
 		}
 
 		// Get file info
 		fileInfo, err := os.Stat(outputPath)
 		if err != nil {
+			errMsg := fmt.Sprintf("image saved but couldn't stat file: %v", err)
+			logger.LogError("%s", errMsg)
 			return generationCompleteMsg{
 				path:     outputPath,
 				duration: time.Since(startTime),
-				err:      fmt.Errorf("image saved but couldn't stat file: %w", err),
+				err:      fmt.Errorf("%s", errMsg),
 			}
 		}
+
+		// Log successful completion
+		duration := time.Since(startTime)
+		logger.LogGenerateComplete(true, outputPath, fileInfo.Size(), duration, "")
+		logger.LogInfo("Image generation completed successfully in %s", duration.String())
 
 		return generationCompleteMsg{
 			path:     outputPath,
 			size:     fileInfo.Size(),
-			duration: time.Since(startTime),
+			duration: duration,
 		}
 	}
 }
