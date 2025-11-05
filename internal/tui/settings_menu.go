@@ -3,18 +3,37 @@ package tui
 
 import (
 	"github.com/apresai/gimage/internal/config"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
+// SettingsPage represents different settings pages
+type SettingsPage int
+
+const (
+	SettingsPageMenu SettingsPage = iota
+	SettingsPageConfig
+	SettingsPageAPIStatus
+	SettingsPageAbout
+	SettingsPageShortcuts
+)
+
 // SettingsMenuModel handles settings and configuration
 type SettingsMenuModel struct {
-	width      int
-	height     int
-	showHelp   bool
-	cfg        *config.Config
-	selectedOp int
-	options    []string
+	width       int
+	height      int
+	showHelp    bool
+	cfg         *config.Config
+	selectedOp  int
+	options     []string
+	currentPage SettingsPage
+
+	// Editing state
+	editingKey   string // Which key is being edited ("gemini", "vertex", "aws", etc.)
+	editInput    textinput.Model
+	saveMessage  string
+	saveError    error
 }
 
 // NewSettingsMenuModel creates a new settings menu model
@@ -22,11 +41,19 @@ func NewSettingsMenuModel() *SettingsMenuModel {
 	// Try to load config
 	cfg, _ := config.LoadConfig()
 
+	// Initialize text input for editing
+	editInput := textinput.New()
+	editInput.Placeholder = "Enter API key..."
+	editInput.CharLimit = 256
+	editInput.Width = 60
+
 	return &SettingsMenuModel{
-		cfg: cfg,
+		cfg:         cfg,
+		currentPage: SettingsPageMenu,
+		editInput:   editInput,
 		options: []string{
 			"View Configuration",
-			"API Keys Status",
+			"Check API Keys Status",
 			"About gimage",
 			"Keyboard Shortcuts",
 		},
@@ -40,6 +67,30 @@ func (m *SettingsMenuModel) Init() tea.Cmd {
 
 // Update handles messages for the settings menu
 func (m *SettingsMenuModel) Update(msg tea.Msg) (*SettingsMenuModel, tea.Cmd) {
+	var cmd tea.Cmd
+
+	// If in editing mode, handle input
+	if m.editingKey != "" {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "enter":
+				// Save the edited value
+				return m, m.saveAPIKey()
+			case "esc":
+				// Cancel editing
+				m.editingKey = ""
+				m.saveMessage = ""
+				m.saveError = nil
+				m.editInput.Blur()
+				return m, nil
+			}
+		}
+		// Update the input
+		m.editInput, cmd = m.editInput.Update(msg)
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -49,6 +100,14 @@ func (m *SettingsMenuModel) Update(msg tea.Msg) (*SettingsMenuModel, tea.Cmd) {
 			m.showHelp = !m.showHelp
 			return m, nil
 		case "esc", "m":
+			// If on a sub-page, go back to menu
+			if m.currentPage != SettingsPageMenu {
+				m.currentPage = SettingsPageMenu
+				m.saveMessage = ""
+				m.saveError = nil
+				return m, nil
+			}
+			// If on menu, go to main menu
 			return m, Navigate(ScreenMainMenu)
 		case "up", "k":
 			if m.selectedOp > 0 {
@@ -57,6 +116,26 @@ func (m *SettingsMenuModel) Update(msg tea.Msg) (*SettingsMenuModel, tea.Cmd) {
 		case "down", "j":
 			if m.selectedOp < len(m.options)-1 {
 				m.selectedOp++
+			}
+		case "enter", " ":
+			// Only handle enter on the menu page
+			if m.currentPage == SettingsPageMenu {
+				switch m.selectedOp {
+				case 0:
+					m.currentPage = SettingsPageConfig
+				case 1:
+					m.currentPage = SettingsPageAPIStatus
+				case 2:
+					m.currentPage = SettingsPageAbout
+				case 3:
+					m.currentPage = SettingsPageShortcuts
+				}
+			}
+			return m, nil
+		case "e":
+			// Edit API keys on config page
+			if m.currentPage == SettingsPageConfig {
+				return m, m.startEditingAPIKey()
 			}
 		}
 	case tea.WindowSizeMsg:
@@ -72,14 +151,16 @@ func (m *SettingsMenuModel) View() string {
 		return m.renderHelp()
 	}
 
-	switch m.selectedOp {
-	case 0:
+	switch m.currentPage {
+	case SettingsPageMenu:
+		return m.viewMainSettings()
+	case SettingsPageConfig:
 		return m.viewConfig()
-	case 1:
+	case SettingsPageAPIStatus:
 		return m.viewAPIStatus()
-	case 2:
+	case SettingsPageAbout:
 		return m.viewAbout()
-	case 3:
+	case SettingsPageShortcuts:
 		return m.viewShortcuts()
 	default:
 		return m.viewMainSettings()
@@ -108,6 +189,11 @@ func (m *SettingsMenuModel) viewMainSettings() string {
 }
 
 func (m *SettingsMenuModel) viewConfig() string {
+	// If in editing mode, show edit interface
+	if m.editingKey != "" {
+		return m.viewEditAPIKey()
+	}
+
 	var configLines []string
 
 	if m.cfg != nil {
@@ -148,10 +234,22 @@ func (m *SettingsMenuModel) viewConfig() string {
 		}
 	}
 
-	content := TitleStyle.Render("Configuration") + "\n\n" +
-		lipgloss.JoinVertical(lipgloss.Left, configLines...) + "\n\n" +
-		WarningStyle.Render("Use 'gimage auth' command to update credentials") + "\n\n" +
-		HelpStyle.Render("Esc: Back")
+	breadcrumb := MutedStyle.Render("Settings > View Configuration")
+	content := breadcrumb + "\n\n" +
+		TitleStyle.Render("Configuration") + "\n\n" +
+		lipgloss.JoinVertical(lipgloss.Left, configLines...) + "\n\n"
+
+	// Show save message if exists
+	if m.saveMessage != "" {
+		if m.saveError != nil {
+			content += ErrorStyle.Render("Error: "+m.saveError.Error()) + "\n\n"
+		} else {
+			content += SuccessStyle.Render(m.saveMessage) + "\n\n"
+		}
+	}
+
+	content += WarningStyle.Render("Press 'e' to edit API keys") + "\n\n" +
+		HelpStyle.Render("e: Edit keys • Esc: Back to settings menu • m: Main menu")
 
 	box := FocusedBoxStyle.Width(80).Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
@@ -176,7 +274,9 @@ func (m *SettingsMenuModel) viewAPIStatus() string {
 		bedrockStatus = greenYes()
 	}
 
-	content := TitleStyle.Render("API Keys Status") + "\n\n" +
+	breadcrumb := MutedStyle.Render("Settings > Check API Keys Status")
+	content := breadcrumb + "\n\n" +
+		TitleStyle.Render("API Keys Status") + "\n\n" +
 		SubtitleStyle.Render("Authentication Status") + "\n\n" +
 		FormatKeyValue("Gemini API", geminiStatus+" "+(map[bool]string{true: "Configured", false: "Not configured"}[hasGemini])) + "\n" +
 		MutedStyle.Render("  Free tier: 500 images/day") + "\n\n" +
@@ -185,14 +285,16 @@ func (m *SettingsMenuModel) viewAPIStatus() string {
 		FormatKeyValue("AWS Bedrock", bedrockStatus+" "+(map[bool]string{true: "Configured", false: "Not configured"}[hasBedrock])) + "\n" +
 		MutedStyle.Render("  Paid: $0.04-0.08 per image") + "\n\n" +
 		WarningStyle.Render("Setup: gimage auth <api>") + "\n\n" +
-		HelpStyle.Render("Esc: Back")
+		HelpStyle.Render("Esc: Back to settings menu • m: Main menu")
 
 	box := FocusedBoxStyle.Width(76).Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 
 func (m *SettingsMenuModel) viewAbout() string {
-	content := TitleStyle.Render("About gimage") + "\n\n" +
+	breadcrumb := MutedStyle.Render("Settings > About gimage")
+	content := breadcrumb + "\n\n" +
+		TitleStyle.Render("About gimage") + "\n\n" +
 		SubtitleStyle.Render("AI Image Generation & Processing Tool") + "\n\n" +
 		"gimage is a powerful CLI and TUI for generating\n" +
 		"AI images and processing existing images.\n\n" +
@@ -205,14 +307,16 @@ func (m *SettingsMenuModel) viewAbout() string {
 		"• Compress (JPEG quality)\n" +
 		"• Convert (PNG, JPG, WebP, etc)\n\n" +
 		MutedStyle.Render("Built with Go • Pure Go (zero C dependencies)") + "\n\n" +
-		HelpStyle.Render("Esc: Back")
+		HelpStyle.Render("Esc: Back to settings menu • m: Main menu")
 
 	box := FocusedBoxStyle.Width(76).Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 
 func (m *SettingsMenuModel) viewShortcuts() string {
-	content := TitleStyle.Render("Keyboard Shortcuts") + "\n\n" +
+	breadcrumb := MutedStyle.Render("Settings > Keyboard Shortcuts")
+	content := breadcrumb + "\n\n" +
+		TitleStyle.Render("Keyboard Shortcuts") + "\n\n" +
 		SubtitleStyle.Render("Global Shortcuts") + "\n\n" +
 		FormatKeyValue("Ctrl+C, q", "Quit application") + "\n" +
 		FormatKeyValue("Esc", "Go back / Cancel") + "\n" +
@@ -223,10 +327,11 @@ func (m *SettingsMenuModel) viewShortcuts() string {
 		FormatKeyValue("Tab", "Next input field") + "\n" +
 		FormatKeyValue("Shift+Tab", "Previous input field") + "\n\n" +
 		SubtitleStyle.Render("Special Keys") + "\n\n" +
-		FormatKeyValue("Ctrl+D", "Submit prompt (generate)") + "\n" +
+		FormatKeyValue("Enter", "Submit prompt (generate)") + "\n" +
+		FormatKeyValue("Shift+Enter", "New line in prompt") + "\n" +
 		FormatKeyValue("Ctrl+L", "Clear screen") + "\n" +
 		FormatKeyValue("m", "Return to main menu") + "\n\n" +
-		HelpStyle.Render("Esc: Back")
+		HelpStyle.Render("Esc: Back to settings menu • m: Main menu")
 
 	box := FocusedBoxStyle.Width(76).Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
@@ -262,4 +367,92 @@ func greenYes() string {
 
 func redNo() string {
 	return ErrorStyle.Render("✗")
+}
+
+// startEditingAPIKey prompts the user to select which API key to edit
+func (m *SettingsMenuModel) startEditingAPIKey() tea.Cmd {
+	// For simplicity, let's just edit Gemini API key first
+	// In a more complete implementation, we'd show a menu to select which key
+	m.editingKey = "gemini"
+	m.editInput.SetValue("")
+	if m.cfg != nil && m.cfg.GeminiAPIKey != "" {
+		m.editInput.SetValue(m.cfg.GeminiAPIKey)
+	}
+	m.editInput.Focus()
+	m.saveMessage = ""
+	m.saveError = nil
+	return textinput.Blink
+}
+
+// viewEditAPIKey renders the API key editing interface
+func (m *SettingsMenuModel) viewEditAPIKey() string {
+	var keyName string
+	switch m.editingKey {
+	case "gemini":
+		keyName = "Gemini API Key"
+	case "vertex":
+		keyName = "Vertex API Key"
+	case "aws":
+		keyName = "AWS Access Key"
+	default:
+		keyName = "API Key"
+	}
+
+	breadcrumb := MutedStyle.Render("Settings > View Configuration > Edit API Key")
+	content := breadcrumb + "\n\n" +
+		TitleStyle.Render("Edit "+keyName) + "\n\n" +
+		SubtitleStyle.Render("Enter your API key") + "\n\n" +
+		m.editInput.View() + "\n\n" +
+		MutedStyle.Render("Your key will be saved to ~/.gimage/config.md") + "\n" +
+		MutedStyle.Render("The file is secured with 0600 permissions") + "\n\n" +
+		HelpStyle.Render("Enter: Save • Esc: Cancel")
+
+	box := FocusedBoxStyle.Width(80).Render(content)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+}
+
+// saveAPIKey saves the edited API key to config
+func (m *SettingsMenuModel) saveAPIKey() tea.Cmd {
+	return func() tea.Msg {
+		newValue := m.editInput.Value()
+
+		// Reload config to ensure we have latest values
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			// If no config exists, create a new one
+			cfg = &config.Config{
+				DefaultAPI:   "gemini",
+				DefaultModel: "gemini-2.5-flash-image",
+				DefaultSize:  "1024x1024",
+			}
+		}
+
+		// Update the appropriate field
+		switch m.editingKey {
+		case "gemini":
+			cfg.GeminiAPIKey = newValue
+		case "vertex":
+			cfg.VertexAPIKey = newValue
+		case "aws":
+			cfg.AWSAccessKeyID = newValue
+		}
+
+		// Save config
+		if err := config.SaveConfig(cfg); err != nil {
+			m.saveError = err
+			m.saveMessage = ""
+			m.editingKey = ""
+			m.editInput.Blur()
+			return nil
+		}
+
+		// Update local config
+		m.cfg = cfg
+		m.saveMessage = "✓ API key saved successfully"
+		m.saveError = nil
+		m.editingKey = ""
+		m.editInput.Blur()
+
+		return nil
+	}
 }

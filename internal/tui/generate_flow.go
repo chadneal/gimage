@@ -89,10 +89,20 @@ type GenerateFlowModel struct {
 	generating  bool
 
 	// Step 7: Result
-	resultPath    string
-	resultSize    int64
+	resultPath     string
+	resultSize     int64
 	generationTime time.Duration
-	err           error
+	err            error
+
+	// Error context for retry
+	errorContext struct {
+		prompt string
+		model  string
+		size   string
+		style  string
+		output string
+	}
+	showErrorDetails bool
 
 	// Navigation state
 	showHelp bool
@@ -296,15 +306,21 @@ func (m *GenerateFlowModel) updatePromptStep(msg tea.Msg) (*GenerateFlowModel, t
 
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
-		case "ctrl+d", "ctrl+enter":
-			// Move to next step if prompt is not empty
+		case "enter":
+			// Enter submits (move to next step) if prompt is not empty
 			if len(strings.TrimSpace(m.promptTextarea.Value())) > 0 {
 				m.currentStep = StepModel
 				return m, nil
 			}
+		case "shift+enter":
+			// Shift+Enter inserts a newline
+			currentValue := m.promptTextarea.Value()
+			m.promptTextarea.SetValue(currentValue + "\n")
+			return m, nil
 		}
 	}
 
+	// For all other keys, let the textarea handle it
 	m.promptTextarea, cmd = m.promptTextarea.Update(msg)
 	return m, cmd
 }
@@ -317,7 +333,7 @@ func (m *GenerateFlowModel) viewPromptStep() string {
 		SubtitleStyle.Render("Describe the image you want to generate") + "\n\n" +
 		m.promptTextarea.View() + "\n\n" +
 		MutedStyle.Render(fmt.Sprintf("Characters: %d/%d", charCount, charLimit)) + "\n\n" +
-		HelpStyle.Render("Ctrl+D or Ctrl+Enter: Next • Esc: Cancel • ?: Help")
+		HelpStyle.Render("Enter: Continue • Shift+Enter: New line • Esc: Cancel • ?: Help")
 
 	box := FocusedBoxStyle.Width(76).Render(content)
 
@@ -652,6 +668,21 @@ func (m *GenerateFlowModel) viewProgressStep() string {
 func (m *GenerateFlowModel) updateResultStep(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
+		case "r":
+			// Retry - restore previous settings and go back to step 1
+			if m.err != nil {
+				m.promptTextarea.SetValue(m.errorContext.prompt)
+				m.err = nil
+				m.showErrorDetails = false
+				m.currentStep = StepPrompt
+				m.promptTextarea.Focus()
+				return m, textarea.Blink
+			}
+		case "d":
+			// Toggle error details
+			if m.err != nil {
+				m.showErrorDetails = !m.showErrorDetails
+			}
 		case "g":
 			// Generate another image - reset to step 1
 			return NewGenerateFlowModel(), textarea.Blink
@@ -667,15 +698,39 @@ func (m *GenerateFlowModel) updateResultStep(msg tea.Msg) (*GenerateFlowModel, t
 
 func (m *GenerateFlowModel) viewResultStep() string {
 	if m.err != nil {
-		content := TitleStyle.Render("Generation Failed") + "\n\n" +
-			ErrorStyle.Render("Error: "+m.err.Error()) + "\n\n" +
-			HelpStyle.Render("g: Try again • m: Main menu • q: Quit")
+		var content string
+
+		if m.showErrorDetails {
+			// Show detailed error information
+			content = TitleStyle.Render("Generation Failed - Error Details") + "\n\n" +
+				ErrorStyle.Render("Error: "+m.err.Error()) + "\n\n" +
+				SubtitleStyle.Render("Generation Parameters") + "\n\n" +
+				FormatKeyValue("Prompt", truncateString(m.errorContext.prompt, 60)) + "\n" +
+				FormatKeyValue("Model", m.errorContext.model) + "\n" +
+				FormatKeyValue("Size", m.errorContext.size) + "\n" +
+				FormatKeyValue("Style", m.errorContext.style) + "\n" +
+				FormatKeyValue("Output", m.errorContext.output) + "\n\n" +
+				WarningStyle.Render("Troubleshooting Tips:") + "\n" +
+				"• Check your API credentials in Settings\n" +
+				"• Verify the model name is correct\n" +
+				"• Try a different model or size\n" +
+				"• Check your internet connection\n\n" +
+				HelpStyle.Render("r: Retry with same settings • d: Hide details • g: New image • m: Main menu")
+		} else {
+			// Show simple error message
+			content = TitleStyle.Render("Generation Failed") + "\n\n" +
+				ErrorStyle.Render("Error: "+m.err.Error()) + "\n\n" +
+				SubtitleStyle.Render("Command that failed:") + "\n\n" +
+				FormatKeyValue("Model", m.errorContext.model) + "\n" +
+				FormatKeyValue("Size", m.errorContext.size) + "\n\n" +
+				HelpStyle.Render("r: Retry with same settings • d: Show details • g: New image • m: Main menu")
+		}
 
 		box := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(ColorError).
 			Padding(1, 2).
-			Width(76).
+			Width(80).
 			Render(content)
 
 		return lipgloss.Place(
@@ -715,7 +770,8 @@ func (m *GenerateFlowModel) renderHelp() string {
 	helpContent := TitleStyle.Render("Keyboard Shortcuts") + "\n\n" +
 		FormatKeyValue("↑/k, ↓/j", "Navigate options") + "\n" +
 		FormatKeyValue("Enter/Space", "Select option") + "\n" +
-		FormatKeyValue("Ctrl+D, Ctrl+Enter", "Next step (from prompt)") + "\n" +
+		FormatKeyValue("Enter", "Submit prompt (continue to next step)") + "\n" +
+		FormatKeyValue("Shift+Enter", "New line in prompt") + "\n" +
 		FormatKeyValue("Tab", "Switch input fields") + "\n" +
 		FormatKeyValue("Esc", "Go back") + "\n" +
 		FormatKeyValue("?", "Toggle help") + "\n" +
@@ -779,6 +835,13 @@ func (m *GenerateFlowModel) generateImageCmd() tea.Cmd {
 			Style:          m.styles[m.selectedStyle].value,
 			NegativePrompt: "", // Could add in future
 		}
+
+		// Save error context for potential retry
+		m.errorContext.prompt = m.promptTextarea.Value()
+		m.errorContext.model = m.models[m.selectedModel].displayName
+		m.errorContext.size = size
+		m.errorContext.style = m.styles[m.selectedStyle].label
+		m.errorContext.output = m.outputInput.Value()
 
 		// Send progress updates
 		go func() {
@@ -860,4 +923,15 @@ type generationCompleteMsg struct {
 	size     int64
 	duration time.Duration
 	err      error
+}
+
+// truncateString truncates a string to maxLen characters, adding "..." if truncated
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return "..."
+	}
+	return s[:maxLen-3] + "..."
 }
