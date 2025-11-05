@@ -1232,80 +1232,23 @@ func (m *GenerateFlowModel) generateImageCmd() tea.Cmd {
 			// Note: In real implementation, we'd have proper progress channels
 		}()
 
-		// Load config
-		cfg, err := config.LoadConfig()
-		if err != nil {
-			errMsg := fmt.Sprintf("failed to load config: %v", err)
-			logger.LogError("%s", errMsg)
-			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
-		}
-
-		// Detect API from model
-		logger.LogDebug("TUI: About to detect API for model: %q", options.Model)
-		logger.LogDebug("TUI: Model bytes: %x", []byte(options.Model))
-
-		api, err = generate.DetectAPIFromModel(options.Model)
-		if err != nil {
-			errMsg := fmt.Sprintf("failed to detect API from model %s: %v", options.Model, err)
-			logger.LogError("%s", errMsg)
-			logger.LogDebug("TUI: API detection failed - model=%q, error=%v", options.Model, err)
-			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
-		}
-
-		logger.LogDebug("TUI: API detected successfully: %q for model %q", api, options.Model)
-
+		// Use the registry to handle all the complexity
 		ctx := context.Background()
+		logger.LogDebug("TUI: Using registry to generate with model: %q", options.Model)
 
-		// Generate image based on API
-		logger.LogDebug("TUI: About to switch on API=%q", api)
-		logger.LogDebug("TUI: Config loaded - GeminiAPIKey length=%d", len(cfg.GeminiAPIKey))
-
-		var result *models.GeneratedImage
-		switch api {
-		case "gemini":
-			logger.LogInfo("Creating Gemini REST client...")
-			logger.LogDebug("TUI: Inside gemini case - about to create REST client with key length=%d", len(cfg.GeminiAPIKey))
-			// Use REST client instead of SDK client (SDK has a bug with image generation)
-			client, err := generate.NewGeminiRESTClient(cfg.GeminiAPIKey)
-			if err != nil {
-				errMsg := fmt.Sprintf("failed to create Gemini REST client: %v", err)
-				logger.LogError("%s", errMsg)
-				return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
-			}
-			defer client.Close()
-
-			logger.LogInfo("Calling Gemini REST API for image generation...")
-			result, err = client.GenerateImage(ctx, m.promptTextarea.Value(), options)
-			if err != nil {
-				errMsg := fmt.Sprintf("Gemini API generation failed: %v", err)
-				logger.LogError("%s", errMsg)
-				logger.LogErrorContext("Gemini Generation Error", err, map[string]string{
-					"model":  options.Model,
-					"size":   size,
-					"prompt": m.promptTextarea.Value(),
-					"api":    api,
-				})
-				return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
-			}
-			logger.LogInfo("Gemini API returned successfully")
-
-		case "vertex":
-			// TODO: Implement vertex support
-			errMsg := "Vertex AI not yet supported in TUI"
-			logger.LogWarn("%s", errMsg)
-			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
-
-		case "bedrock":
-			// TODO: Implement bedrock support
-			errMsg := "AWS Bedrock not yet supported in TUI"
-			logger.LogWarn("%s", errMsg)
-			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
-
-		default:
-			errMsg := fmt.Sprintf("unknown API: %s", api)
+		result, err := generate.GenerateWithRegistry(ctx, options.Model, m.promptTextarea.Value(), options)
+		if err != nil {
+			errMsg := fmt.Sprintf("Generation failed: %v", err)
 			logger.LogError("%s", errMsg)
+			logger.LogErrorContext("Generation Error", err, map[string]string{
+				"model":  options.Model,
+				"size":   size,
+				"prompt": m.promptTextarea.Value(),
+			})
 			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
 		}
+
+		logger.LogInfo("Image generated successfully")
 
 		// Save the generated image to disk
 		outputPath := m.outputInput.Value()

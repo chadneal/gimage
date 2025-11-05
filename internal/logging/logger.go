@@ -169,7 +169,7 @@ func (l *Logger) LogCommandComplete(commandName string, success bool, duration t
 		msg += fmt.Sprintf(" error=%q", errMsg)
 	}
 
-	l.Log(INFO, msg)
+	l.Log(INFO, "%s", msg)
 }
 
 // LogGenerateStart logs the start of image generation
@@ -217,7 +217,7 @@ func (l *Logger) LogGenerateComplete(success bool, outputPath string, fileSize i
 	}
 	msg += fmt.Sprintf(" duration=%s", duration.String())
 
-	l.Log(INFO, msg)
+	l.Log(INFO, "%s", msg)
 }
 
 // LogAuthStatus logs authentication status for LLMs
@@ -246,7 +246,7 @@ func (l *Logger) LogAPICall(apiName string, modelName string, endpoint string, s
 	}
 	msg += ")"
 
-	l.Log(INFO, msg)
+	l.Log(INFO, "%s", msg)
 }
 
 // LogError logs a detailed error with context
