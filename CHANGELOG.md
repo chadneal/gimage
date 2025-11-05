@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.52] - 2025-11-05
+
+### Added
+- macOS keyboard shortcuts for improved navigation
+- Settings navigation menu for easier configuration access
+- Editable API keys in settings interface
+
+### Changed
+- Enhanced error handling in generate flow
+- Improved settings menu UI and functionality
+
+
 ## [1.1.50] - 2025-11-05
 
 ### Changed
