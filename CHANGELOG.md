@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.54] - 2025-11-05
+
+### Fixed
+- TUI image generation now works correctly by switching from SDK to REST client for API calls
+- Enhanced TUI generation flow with improved error handling and progress feedback
+
+### Added
+- Comprehensive logging system for debugging TUI operations
+- Automated testing suite for TUI image generation workflows
+- Debug mode support with detailed operation logging
+- Progress indicators and status messages during image generation
+
+### Changed
+- Refactored TUI generation flow to use REST client instead of SDK for better reliability
+- Improved TUI styles and visual feedback during operations
+
+
 ## [1.1.52] - 2025-11-05
 
 ### Added
