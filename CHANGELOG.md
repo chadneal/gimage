@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.48] - 2025-11-05
+
+### Fixed
+
+- Add context.Context parameter to test function calls for proper context handling in image processing tests
+
+
 ## [1.1.46] - 2025-11-05
 
 ```markdown
