@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,7 +64,7 @@ Examples:
 
 		// Call imaging function
 		fmt.Printf("Cropping %s to region (%d,%d) %dx%d...\n", inputPath, x, y, width, height)
-		err = imaging.CropImage(inputPath, outputPath, x, y, width, height)
+		err = imaging.CropImage(context.Background(), inputPath, outputPath, x, y, width, height)
 		if err != nil {
 			return fmt.Errorf("crop failed: %w", err)
 		}

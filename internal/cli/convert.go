@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,7 +41,7 @@ Examples:
 
 		// Convert the image
 		fmt.Printf("Converting %s to %s format...\n", inputPath, targetFormat)
-		err := imaging.ConvertImageFile(inputPath, outputPath)
+		err := imaging.ConvertImageFile(context.Background(), inputPath, outputPath)
 		if err != nil {
 			return fmt.Errorf("conversion failed: %w", err)
 		}

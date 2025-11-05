@@ -2,12 +2,19 @@ package generate
 
 import (
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/apresai/gimage/internal/imaging"
 	"github.com/apresai/gimage/pkg/models"
+	imaginglib "github.com/disintegration/imaging"
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/tiff"
 )
 
 const (
@@ -32,6 +39,10 @@ func getDefaultOutputDir() string {
 // If the directory doesn't exist, it will be created.
 // If the output path has a different extension than the source format,
 // the image will be automatically converted to the target format.
+//
+// This function also enforces size constraints: if the generated image
+// dimensions don't match the requested dimensions in img.Width/img.Height,
+// the image will be automatically resized to match the requested size.
 func SaveImage(img *models.GeneratedImage, outputPath string) error {
 	if img == nil {
 		return fmt.Errorf("image cannot be nil")
@@ -57,24 +68,51 @@ func SaveImage(img *models.GeneratedImage, outputPath string) error {
 	targetFormat := imaging.ExtractFormatFromPath(outputPath)
 	sourceFormat := normalizeFormat(img.Format)
 
+	// Determine which data to save
+	dataToSave := img.Data
+
 	// If formats don't match, convert the image
 	if targetFormat != sourceFormat {
 		convertedData, err := imaging.ConvertImageData(img.Data, targetFormat)
 		if err != nil {
 			return fmt.Errorf("failed to convert image from %s to %s: %w", sourceFormat, targetFormat, err)
 		}
-
-		// Write the converted image data
-		if err := os.WriteFile(outputPath, convertedData, defaultFilePerms); err != nil {
-			return fmt.Errorf("failed to write image to %s: %w", outputPath, err)
-		}
-
-		return nil
+		dataToSave = convertedData
 	}
 
-	// Write the image data as-is (no conversion needed)
-	if err := os.WriteFile(outputPath, img.Data, defaultFilePerms); err != nil {
+	// Write the image data to a temporary location first
+	if err := os.WriteFile(outputPath, dataToSave, defaultFilePerms); err != nil {
 		return fmt.Errorf("failed to write image to %s: %w", outputPath, err)
+	}
+
+	// Verify and enforce requested dimensions if specified
+	if img.Width > 0 && img.Height > 0 {
+		actualWidth, actualHeight, err := GetImageDimensions(outputPath)
+		if err != nil {
+			// If we can't read dimensions, just log a warning but don't fail
+			fmt.Fprintf(os.Stderr, "Warning: Could not verify image dimensions: %v\n", err)
+			return nil
+		}
+
+		// Check if dimensions match requested size
+		if actualWidth != img.Width || actualHeight != img.Height {
+			fmt.Fprintf(os.Stderr, "Note: Model returned %dx%d, enforcing to %dx%d\n",
+				actualWidth, actualHeight, img.Width, img.Height)
+
+			// Resize to match requested dimensions using imaging package
+			resizedImg, err := imaginglib.Open(outputPath)
+			if err != nil {
+				return fmt.Errorf("failed to open image for resize enforcement: %w", err)
+			}
+
+			// Resize to exact requested dimensions
+			resizedImg = imaginglib.Resize(resizedImg, img.Width, img.Height, imaginglib.Lanczos)
+
+			// Save with the target format
+			if err := imaging.SaveImageWithFormat(resizedImg, outputPath, targetFormat); err != nil {
+				return fmt.Errorf("failed to save resized image: %w", err)
+			}
+		}
 	}
 
 	return nil
@@ -250,6 +288,22 @@ func ValidateOutputPath(path string) error {
 	}
 
 	return nil
+}
+
+// GetImageDimensions reads an image file and returns its dimensions
+func GetImageDimensions(path string) (width, height int, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	config, _, err := image.DecodeConfig(file)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to decode image config: %w", err)
+	}
+
+	return config.Width, config.Height, nil
 }
 
 // EnsureOutputDir ensures the output directory exists

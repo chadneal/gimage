@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,7 +46,7 @@ Examples:
 
 		// Call imaging function
 		fmt.Printf("Scaling %s by %.2fx...\n", inputPath, factor)
-		err = imaging.ScaleImage(inputPath, outputPath, factor)
+		err = imaging.ScaleImage(context.Background(), inputPath, outputPath, factor)
 		if err != nil {
 			return fmt.Errorf("scale failed: %w", err)
 		}

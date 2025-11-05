@@ -63,4 +63,34 @@ func main() {
 	}
 
 	log.Println("Created small_test.png (200x150)")
+
+	// Create a 512x512 test image
+	img512 := image.NewRGBA(image.Rect(0, 0, 512, 512))
+	for y := 0; y < 512; y++ {
+		for x := 0; x < 512; x++ {
+			var c color.RGBA
+			if x < 256 && y < 256 {
+				c = color.RGBA{255, 0, 0, 255} // Red top-left
+			} else if x >= 256 && y < 256 {
+				c = color.RGBA{0, 255, 0, 255} // Green top-right
+			} else if x < 256 && y >= 256 {
+				c = color.RGBA{0, 0, 255, 255} // Blue bottom-left
+			} else {
+				c = color.RGBA{255, 255, 0, 255} // Yellow bottom-right
+			}
+			img512.Set(x, y, c)
+		}
+	}
+
+	f3, err := os.Create("test_image_512x512.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f3.Close()
+
+	if err := png.Encode(f3, img512); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Created test_image_512x512.png (512x512)")
 }

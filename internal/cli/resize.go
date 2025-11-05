@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,7 +50,8 @@ Examples:
 
 		// Resize the image
 		fmt.Printf("Resizing %s to %dx%d...\n", inputPath, width, height)
-		err = imaging.ResizeImage(inputPath, outputPath, width, height)
+		ctx := context.Background()
+		err = imaging.ResizeImage(ctx, inputPath, outputPath, width, height)
 		if err != nil {
 			return fmt.Errorf("resize failed: %w", err)
 		}

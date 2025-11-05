@@ -2,6 +2,7 @@ package imaging
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -14,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/HugoSmits86/nativewebp"
+	"github.com/apresai/gimage/internal/progress"
 	"github.com/disintegration/imaging"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
@@ -62,22 +64,54 @@ func ConvertImageData(data []byte, targetFormat string) ([]byte, error) {
 // ConvertImageFile converts an image file from one format to another.
 //
 // Parameters:
+//   - ctx: context for cancellation support
 //   - inputPath: path to input image
 //   - outputPath: path to save converted image
 //
 // The output format is determined by the file extension of outputPath.
-func ConvertImageFile(inputPath, outputPath string) error {
-	// Load the input image
-	img, err := imaging.Open(inputPath)
-	if err != nil {
-		return fmt.Errorf("failed to open image %s: %w", inputPath, err)
+// Progress reporting can be provided via context using progress.WithReporter.
+func ConvertImageFile(ctx context.Context, inputPath, outputPath string) error {
+	reporter := progress.FromContext(ctx)
+	targetFormat := ExtractFormatFromPath(outputPath)
+	reporter.Start(ctx, fmt.Sprintf("Converting image to %s", targetFormat))
+
+	// Check for cancellation
+	select {
+	case <-ctx.Done():
+		err := fmt.Errorf("operation cancelled: %w", ctx.Err())
+		reporter.Error(err)
+		return err
+	default:
 	}
 
-	// Get target format from output path
-	targetFormat := ExtractFormatFromPath(outputPath)
+	// Load the input image
+	reporter.Update(1, 3, "Loading input image")
+	img, err := imaging.Open(inputPath)
+	if err != nil {
+		err = fmt.Errorf("failed to open image %s: %w", inputPath, err)
+		reporter.Error(err)
+		return err
+	}
+
+	// Check for cancellation
+	select {
+	case <-ctx.Done():
+		err := fmt.Errorf("operation cancelled: %w", ctx.Err())
+		reporter.Error(err)
+		return err
+	default:
+	}
 
 	// Save with the target format
-	return SaveImageWithFormat(img, outputPath, targetFormat)
+	reporter.Update(2, 3, fmt.Sprintf("Converting to %s format", targetFormat))
+	if err := SaveImageWithFormat(img, outputPath, targetFormat); err != nil {
+		reporter.Error(err)
+		return err
+	}
+
+	reporter.Update(3, 3, "Conversion complete")
+	reporter.Complete(outputPath)
+	return nil
 }
 
 // SaveImageWithFormat saves an image to a file with explicit format specification.
