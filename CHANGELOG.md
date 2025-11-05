@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.1.46] - 2025-11-05
+
+```markdown
+## [Unreleased]
+
+### Added
+- Interactive TUI (Terminal User Interface) with main menu, batch processing, generation flow, and settings management
+- Batch operation history tracking with persistent storage
+- Progress reporter for real-time operation feedback
+- Production quality test suite with comprehensive integration tests
+- Image compression operation with quality control
+- TUI documentation and feature tour
+- Test fixtures (small_test.png, test_image.png, test_image_512x512.png)
+
+### Changed
+- Simplified CLI command outputs for better TUI integration
+- Improved image processing operations (resize, scale, crop, convert) with enhanced error handling
+- Streamlined documentation: consolidated guides into concise references
+- Reduced project documentation by 56% (removed planning and implementation tracking docs)
+- Updated lambda.md from 1,385 to 272 lines (removed CDK code, kept deployment guide)
+- Updated INTEGRATION_GUIDE.md to focus on crisp examples only
+
+### Removed
+- Project planning documents (RELEASING.md, roadmap.md, HOMEBREW.md)
+- Implementation tracking docs (DEPLOYMENT_CHECKLIST.md, LAMBDA_STATUS.md)
+- Research/analysis docs (MCP_LLM_LEARNING_ANALYSIS.md, AI_TOOL_CALLING_IMPROVEMENTS.md, AWS_BEDROCK_SDK_GUIDE.md, etc.)
+- Redundant documentation (API_REFERENCE.md, SWAGGER_SETUP.md, RELEASE_NOTES.md, etc.)
+```
+
+
 ## [1.1.43] - 2025-11-02
 
 ### Added
