@@ -1,6 +1,7 @@
 package imaging
 
 import (
+	"context"
 	"image"
 	"os"
 	"path/filepath"
@@ -200,7 +201,7 @@ func TestCropImage(t *testing.T) {
 			outputPath := filepath.Join(t.TempDir(), "output.png")
 
 			// Perform crop
-			err := CropImage(inputPath, outputPath, tt.x, tt.y, tt.width, tt.height)
+			err := CropImage(context.Background(), inputPath, outputPath, tt.x, tt.y, tt.width, tt.height)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -230,7 +231,7 @@ func TestCropImage(t *testing.T) {
 
 func TestCropImage_InvalidInputFile(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "output.png")
-	err := CropImage("nonexistent.png", outputPath, 0, 0, 100, 100)
+	err := CropImage(context.Background(), "nonexistent.png", outputPath, 0, 0, 100, 100)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open image")
 }
@@ -332,7 +333,7 @@ func TestCropCenter(t *testing.T) {
 			outputPath := filepath.Join(t.TempDir(), "output.png")
 
 			// Perform center crop
-			err := CropCenter(inputPath, outputPath, tt.cropW, tt.cropH)
+			err := CropCenter(context.Background(), inputPath, outputPath, tt.cropW, tt.cropH)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -362,7 +363,7 @@ func TestCropCenter(t *testing.T) {
 
 func TestCropCenter_InvalidInputFile(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "output.png")
-	err := CropCenter("nonexistent.png", outputPath, 100, 100)
+	err := CropCenter(context.Background(), "nonexistent.png", outputPath, 100, 100)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open image")
 }
@@ -390,7 +391,7 @@ func TestCropAnchor(t *testing.T) {
 			outputPath := filepath.Join(t.TempDir(), "output.png")
 
 			// Perform anchor crop
-			err := CropAnchor(inputPath, outputPath, 400, 300, anchor.anchor)
+			err := CropAnchor(context.Background(), inputPath, outputPath, 400, 300, anchor.anchor)
 
 			// Should succeed
 			require.NoError(t, err)
@@ -483,7 +484,7 @@ func TestCropAnchor_ValidationErrors(t *testing.T) {
 			outputPath := filepath.Join(t.TempDir(), "output.png")
 
 			// Try anchor crop with Center anchor
-			err := CropAnchor(inputPath, outputPath, tt.cropW, tt.cropH, imaging.Center)
+			err := CropAnchor(context.Background(), inputPath, outputPath, tt.cropW, tt.cropH, imaging.Center)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -500,7 +501,7 @@ func TestCropAnchor_ValidationErrors(t *testing.T) {
 
 func TestCropAnchor_InvalidInputFile(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "output.png")
-	err := CropAnchor("nonexistent.png", outputPath, 100, 100, imaging.Center)
+	err := CropAnchor(context.Background(), "nonexistent.png", outputPath, 100, 100, imaging.Center)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open image")
 }
@@ -518,7 +519,7 @@ func TestCropImage_RealFixture(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "cropped_fixture.png")
 
 	// Crop a region from the fixture
-	err := CropImage(fixturePath, outputPath, 100, 100, 200, 150)
+	err := CropImage(context.Background(), fixturePath, outputPath, 100, 100, 200, 150)
 	require.NoError(t, err)
 
 	// Verify output
@@ -543,7 +544,7 @@ func TestCropCenter_RealFixture(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "center_cropped_fixture.png")
 
 	// Crop from center
-	err := CropCenter(fixturePath, outputPath, 400, 300)
+	err := CropCenter(context.Background(), fixturePath, outputPath, 400, 300)
 	require.NoError(t, err)
 
 	// Verify output
@@ -568,7 +569,7 @@ func TestCropAnchor_RealFixture(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "anchor_cropped_fixture.png")
 
 	// Crop from top-left corner
-	err := CropAnchor(fixturePath, outputPath, 300, 200, imaging.TopLeft)
+	err := CropAnchor(context.Background(), fixturePath, outputPath, 300, 200, imaging.TopLeft)
 	require.NoError(t, err)
 
 	// Verify output

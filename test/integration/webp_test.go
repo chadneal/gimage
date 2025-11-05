@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"image"
 	"image/color"
 	"image/png"
@@ -42,7 +43,7 @@ func TestWebPEncoding(t *testing.T) {
 
 	// Test 1: Convert PNG to WebP using ConvertImageFile
 	webpPath := filepath.Join(tmpDir, "test.webp")
-	err = imaging.ConvertImageFile(pngPath, webpPath)
+	err = imaging.ConvertImageFile(context.Background(), pngPath, webpPath)
 	if err != nil {
 		t.Fatalf("ConvertImageFile failed: %v", err)
 	}
@@ -104,7 +105,7 @@ func TestWebPWithTransparency(t *testing.T) {
 
 	// Convert to WebP
 	webpPath := filepath.Join(tmpDir, "transparent.webp")
-	err = imaging.ConvertImageFile(pngPath, webpPath)
+	err = imaging.ConvertImageFile(context.Background(), pngPath, webpPath)
 	if err != nil {
 		t.Fatalf("ConvertImageFile with transparency failed: %v", err)
 	}
@@ -204,7 +205,7 @@ func TestWebPFormats(t *testing.T) {
 
 			// Convert to WebP
 			webpPath := filepath.Join(tmpDir, "output_"+tt.format+".webp")
-			err = imaging.ConvertImageFile(sourcePath, webpPath)
+			err = imaging.ConvertImageFile(context.Background(), sourcePath, webpPath)
 
 			if tt.shouldWork {
 				if err != nil {

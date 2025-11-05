@@ -1,6 +1,7 @@
 package imaging
 
 import (
+	"context"
 	"image"
 	"os"
 	"path/filepath"
@@ -120,7 +121,7 @@ func TestResizeImage(t *testing.T) {
 			require.NoError(t, err, "failed to create test image")
 
 			// Test resize
-			err = ResizeImage(inputPath, outputPath, tt.newWidth, tt.newHeight)
+			err = ResizeImage(context.Background(), inputPath, outputPath, tt.newWidth, tt.newHeight)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -155,7 +156,7 @@ func TestResizeImage_InvalidInputFile(t *testing.T) {
 	nonexistentPath := filepath.Join(tmpDir, "nonexistent.png")
 	outputPath := filepath.Join(tmpDir, "output.png")
 
-	err := ResizeImage(nonexistentPath, outputPath, 100, 100)
+	err := ResizeImage(context.Background(), nonexistentPath, outputPath, 100, 100)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open image")
 }
@@ -273,7 +274,7 @@ func TestResizeFit(t *testing.T) {
 			require.NoError(t, err, "failed to create test image")
 
 			// Test resize fit
-			err = ResizeFit(inputPath, outputPath, tt.maxWidth, tt.maxHeight)
+			err = ResizeFit(context.Background(), inputPath, outputPath, tt.maxWidth, tt.maxHeight)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -312,7 +313,7 @@ func TestResizeFit_InvalidInputFile(t *testing.T) {
 	nonexistentPath := filepath.Join(tmpDir, "nonexistent.png")
 	outputPath := filepath.Join(tmpDir, "output.png")
 
-	err := ResizeFit(nonexistentPath, outputPath, 100, 100)
+	err := ResizeFit(context.Background(), nonexistentPath, outputPath, 100, 100)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open image")
 }
@@ -327,7 +328,7 @@ func TestResizeFit_RealFixture(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "resized_fit.png")
 
-	err := ResizeFit(fixturePath, outputPath, 400, 400)
+	err := ResizeFit(context.Background(), fixturePath, outputPath, 400, 400)
 	assert.NoError(t, err)
 
 	// Verify output exists
