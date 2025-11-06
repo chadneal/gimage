@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.2.63] - 2025-11-06
+
+### Changed
+
+- **Generate command**: Now accepts positional prompt argument (`gimage generate "sunset"`) in addition to flag-based prompt (`--prompt`) for improved UX
+- **Auth commands**: Refactored into modular structure with new dedicated `auth status` command providing detailed credential information
+- **CLI verbose output**: Improved formatting and consistency across all image processing commands (resize, crop, scale, compress, convert)
+- **Configuration**: Streamlined config management, removing legacy config command in favor of auth commands
+- **Documentation**: Comprehensive overhaul of README.md, COMMANDS.md, CLAUDE.md, and MCP_USAGE.md with clearer examples and better organization
+- **Integration tests**: Updated CLI E2E tests to use new positional prompt syntax
+
+### Removed
+
+- **Batch CLI commands**: Removed `gimage batch` command (batch operations now exclusively through MCP server)
+- **TUI batch menu**: Removed batch processing UI from TUI (use MCP server batch tools instead)
+- **Batch history tracking**: Removed history persistence system (`internal/batch/history.go` and tests)
+- **Documentation files**: Removed 12 planning/implementation docs (DESIGN.md, IMPLEMENTATION_SUMMARY.md, PRODUCTION_QUALITY_FIXES.md, TUI_FEATURE_TOUR.md, TUI_IMPLEMENTATION_SUMMARY.md, TESTING.md, lambda.md, tui.md, npm/README.md, test/integration/README.md, internal/generate/README.md, INTEGRATION_GUIDE.md) - ~14,000 lines total
+- **Config command**: Removed legacy `gimage config` subcommand
+
+
 ## [1.2.61] - 2025-11-05
 
 ### Changed
