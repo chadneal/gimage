@@ -46,23 +46,23 @@ func TestMCPToolsE2E(t *testing.T) {
 			t.Fatalf("list_models failed: %v", err)
 		}
 
-		// Verify result contains model information
+		// Verify result contains provider information
 		t.Logf("list_models result: %+v", result)
-		models, ok := result["models"]
+		providers, ok := result["providers"]
 		if !ok {
-			t.Fatalf("No 'models' key in result. Keys: %v", getKeys(result))
+			t.Fatalf("No 'providers' key in result. Keys: %v", getKeys(result))
 		}
 
-		modelsList, ok := models.([]map[string]interface{})
+		providersList, ok := providers.([]map[string]interface{})
 		if !ok {
-			t.Fatalf("models is not []map[string]interface{}, got %T", models)
+			t.Fatalf("providers is not []map[string]interface{}, got %T", providers)
 		}
 
-		if len(modelsList) == 0 {
-			t.Fatal("Expected non-empty models list from list_models")
+		if len(providersList) == 0 {
+			t.Fatal("Expected non-empty providers list from list_models")
 		}
 
-		t.Logf("✓ list_models tool works (%d models)", len(modelsList))
+		t.Logf("✓ list_models tool works (%d providers)", len(providersList))
 	})
 
 	t.Run("Tool2_ResizeImage", func(t *testing.T) {
@@ -269,6 +269,38 @@ func TestMCPToolsE2E(t *testing.T) {
 		}
 
 		t.Log("✓ generate_image tool validation works")
+	})
+
+	t.Run("Tool11_GenerateImage_RealGeneration", func(t *testing.T) {
+		// Only run if GEMINI_API_KEY is set (uses API quota)
+		if os.Getenv("GEMINI_API_KEY") == "" {
+			t.Skip("Skipping real image generation (set GEMINI_API_KEY to enable)")
+		}
+
+		outputPath := filepath.Join(tmpDir, "generated-test.png")
+
+		result, err := callTool(server, "generate_image", map[string]interface{}{
+			"prompt": "a simple red square on white background",
+			"output": outputPath,
+			"size":   "512x512", // Smaller size for faster test
+			"model":  "gemini-2.5-flash-image",
+		})
+		if err != nil {
+			t.Fatalf("generate_image failed: %v", err)
+		}
+
+		// Verify output file exists
+		info, err := os.Stat(outputPath)
+		if os.IsNotExist(err) {
+			t.Fatal("Generated image not created")
+		}
+
+		if info.Size() == 0 {
+			t.Fatal("Generated image file is empty")
+		}
+
+		t.Logf("✓ generate_image tool works: %s (%d bytes)", outputPath, info.Size())
+		t.Logf("  Result: %v", result)
 	})
 }
 

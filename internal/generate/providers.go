@@ -26,7 +26,7 @@ type ImageGenerator interface {
 
 // Provider represents a specific way to access a model (API + Model + Auth)
 type Provider struct {
-	// Unique identifier: "provider/model" e.g., "gemini/flash-2.5", "vertex/flash-2.5"
+	// Unique identifier: "provider/model" e.g., "gemini/flash-2.5", "vertex/imagen-4"
 	ID string
 
 	// Display information
@@ -136,66 +136,6 @@ func (r *ProviderRegistry) registerAllProviders() {
 		},
 	})
 
-	// Same model via Vertex AI
-	r.Register(&Provider{
-		ID:          "vertex/flash-2.5",
-		Name:        "Gemini 2.5 Flash (via Vertex AI)",
-		API:         "vertex",
-		ModelID:     "gemini-2.5-flash-image",
-		Description: "Enterprise access via Google Cloud - Regional, with SLAs",
-		RequiredEnvVars: []EnvVar{
-			{
-				Name:        "VERTEX_PROJECT",
-				ConfigKey:   "vertex_project",
-				Description: "GCP Project ID",
-				Required:    true,
-				Secret:      false,
-			},
-			{
-				Name:        "VERTEX_LOCATION",
-				ConfigKey:   "vertex_location",
-				Description: "GCP region (e.g., us-central1)",
-				Required:    true,
-				Secret:      false,
-			},
-			{
-				Name:        "VERTEX_API_KEY",
-				ConfigKey:   "vertex_api_key",
-				Description: "Vertex AI API key (for Express mode) or leave empty for service account",
-				Required:    false,
-				Secret:      true,
-			},
-		},
-		Pricing: PricingInfo{
-			CostPerImage: float64Ptr(0.04), // Different pricing via Vertex
-			FreeTier:     false,
-			Currency:     "USD",
-		},
-		Capabilities: ModelCapabilities{
-			SupportsStyles:         true,
-			SupportsNegativePrompt: true,
-			SupportsSeed:           true,
-			MaxPromptLength:        480,
-		},
-		CreateClient: func(creds map[string]string) (ImageGenerator, error) {
-			project := creds["VERTEX_PROJECT"]
-			location := creds["VERTEX_LOCATION"]
-			apiKey := creds["VERTEX_API_KEY"]
-
-			if project == "" || location == "" {
-				return nil, fmt.Errorf("VERTEX_PROJECT and VERTEX_LOCATION are required")
-			}
-
-			if apiKey != "" {
-				// Express mode with API key
-				return NewVertexRESTClient(apiKey, project, location)
-			}
-			// Service account mode
-			ctx := context.Background()
-			return NewVertexSDKClient(ctx, project, location)
-		},
-	})
-
 	// Imagen 4 via Vertex AI
 	r.Register(&Provider{
 		ID:          "vertex/imagen-4",
@@ -228,6 +168,180 @@ func (r *ProviderRegistry) registerAllProviders() {
 		},
 		Pricing: PricingInfo{
 			CostPerImage: float64Ptr(0.04),
+			FreeTier:     false,
+			Currency:     "USD",
+		},
+		Capabilities: ModelCapabilities{
+			SupportsStyles:         true,
+			SupportsNegativePrompt: true,
+			SupportsSeed:           true,
+			MaxPromptLength:        2000,
+		},
+		CreateClient: func(creds map[string]string) (ImageGenerator, error) {
+			project := creds["VERTEX_PROJECT"]
+			location := creds["VERTEX_LOCATION"]
+			apiKey := creds["VERTEX_API_KEY"]
+
+			if project == "" || location == "" {
+				return nil, fmt.Errorf("VERTEX_PROJECT and VERTEX_LOCATION are required")
+			}
+
+			if apiKey != "" {
+				return NewVertexRESTClient(apiKey, project, location)
+			}
+			ctx := context.Background()
+			return NewVertexSDKClient(ctx, project, location)
+		},
+	})
+
+	// Imagen 3 (latest) via Vertex AI
+	r.Register(&Provider{
+		ID:          "vertex/imagen-3",
+		Name:        "Imagen 3 (via Vertex AI)",
+		API:         "vertex",
+		ModelID:     "imagen-3.0-generate-002",
+		Description: "Google's Imagen 3 model, improved version",
+		RequiredEnvVars: []EnvVar{
+			{
+				Name:        "VERTEX_PROJECT",
+				ConfigKey:   "vertex_project",
+				Description: "GCP Project ID",
+				Required:    true,
+				Secret:      false,
+			},
+			{
+				Name:        "VERTEX_LOCATION",
+				ConfigKey:   "vertex_location",
+				Description: "GCP region (e.g., us-central1)",
+				Required:    true,
+				Secret:      false,
+			},
+			{
+				Name:        "VERTEX_API_KEY",
+				ConfigKey:   "vertex_api_key",
+				Description: "Vertex AI API key (optional)",
+				Required:    false,
+				Secret:      true,
+			},
+		},
+		Pricing: PricingInfo{
+			CostPerImage: float64Ptr(0.02),
+			FreeTier:     false,
+			Currency:     "USD",
+		},
+		Capabilities: ModelCapabilities{
+			SupportsStyles:         true,
+			SupportsNegativePrompt: true,
+			SupportsSeed:           true,
+			MaxPromptLength:        2000,
+		},
+		CreateClient: func(creds map[string]string) (ImageGenerator, error) {
+			project := creds["VERTEX_PROJECT"]
+			location := creds["VERTEX_LOCATION"]
+			apiKey := creds["VERTEX_API_KEY"]
+
+			if project == "" || location == "" {
+				return nil, fmt.Errorf("VERTEX_PROJECT and VERTEX_LOCATION are required")
+			}
+
+			if apiKey != "" {
+				return NewVertexRESTClient(apiKey, project, location)
+			}
+			ctx := context.Background()
+			return NewVertexSDKClient(ctx, project, location)
+		},
+	})
+
+	// Imagen 3 (standard) via Vertex AI
+	r.Register(&Provider{
+		ID:          "vertex/imagen-3-standard",
+		Name:        "Imagen 3 Standard (via Vertex AI)",
+		API:         "vertex",
+		ModelID:     "imagen-3.0-generate-001",
+		Description: "Google's Imagen 3 model, standard quality",
+		RequiredEnvVars: []EnvVar{
+			{
+				Name:        "VERTEX_PROJECT",
+				ConfigKey:   "vertex_project",
+				Description: "GCP Project ID",
+				Required:    true,
+				Secret:      false,
+			},
+			{
+				Name:        "VERTEX_LOCATION",
+				ConfigKey:   "vertex_location",
+				Description: "GCP region (e.g., us-central1)",
+				Required:    true,
+				Secret:      false,
+			},
+			{
+				Name:        "VERTEX_API_KEY",
+				ConfigKey:   "vertex_api_key",
+				Description: "Vertex AI API key (optional)",
+				Required:    false,
+				Secret:      true,
+			},
+		},
+		Pricing: PricingInfo{
+			CostPerImage: float64Ptr(0.02),
+			FreeTier:     false,
+			Currency:     "USD",
+		},
+		Capabilities: ModelCapabilities{
+			SupportsStyles:         true,
+			SupportsNegativePrompt: true,
+			SupportsSeed:           true,
+			MaxPromptLength:        2000,
+		},
+		CreateClient: func(creds map[string]string) (ImageGenerator, error) {
+			project := creds["VERTEX_PROJECT"]
+			location := creds["VERTEX_LOCATION"]
+			apiKey := creds["VERTEX_API_KEY"]
+
+			if project == "" || location == "" {
+				return nil, fmt.Errorf("VERTEX_PROJECT and VERTEX_LOCATION are required")
+			}
+
+			if apiKey != "" {
+				return NewVertexRESTClient(apiKey, project, location)
+			}
+			ctx := context.Background()
+			return NewVertexSDKClient(ctx, project, location)
+		},
+	})
+
+	// Imagen 3 Fast via Vertex AI
+	r.Register(&Provider{
+		ID:          "vertex/imagen-3-fast",
+		Name:        "Imagen 3 Fast (via Vertex AI)",
+		API:         "vertex",
+		ModelID:     "imagen-3.0-fast-generate-001",
+		Description: "Google's Imagen 3 Fast model, optimized for speed",
+		RequiredEnvVars: []EnvVar{
+			{
+				Name:        "VERTEX_PROJECT",
+				ConfigKey:   "vertex_project",
+				Description: "GCP Project ID",
+				Required:    true,
+				Secret:      false,
+			},
+			{
+				Name:        "VERTEX_LOCATION",
+				ConfigKey:   "vertex_location",
+				Description: "GCP region (e.g., us-central1)",
+				Required:    true,
+				Secret:      false,
+			},
+			{
+				Name:        "VERTEX_API_KEY",
+				ConfigKey:   "vertex_api_key",
+				Description: "Vertex AI API key (optional)",
+				Required:    false,
+				Secret:      true,
+			},
+		},
+		Pricing: PricingInfo{
+			CostPerImage: float64Ptr(0.01),
 			FreeTier:     false,
 			Currency:     "USD",
 		},

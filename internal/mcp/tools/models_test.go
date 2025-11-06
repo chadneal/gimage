@@ -75,23 +75,23 @@ func TestListModelsTool_ResponseStructure(t *testing.T) {
 		t.Fatal("Result is nil")
 	}
 
-	// Check for required top-level fields
-	requiredFields := []string{"models", "total", "credentials", "default_model", "pricing_note", "recommendations"}
+	// Check for required top-level fields (new Provider system)
+	requiredFields := []string{"providers", "total", "configured", "default_provider", "pricing_note", "recommendations"}
 	for _, field := range requiredFields {
 		if _, exists := result[field]; !exists {
 			t.Errorf("Required field '%s' missing from result", field)
 		}
 	}
 
-	// Verify models is an array
-	models, ok := result["models"].([]map[string]interface{})
+	// Verify providers is an array
+	providers, ok := result["providers"].([]map[string]interface{})
 	if !ok {
-		t.Fatal("models field is not an array of maps")
+		t.Fatal("providers field is not an array of maps")
 	}
 
-	// Should have at least some models
-	if len(models) == 0 {
-		t.Error("No models returned (expected at least some models)")
+	// Should have at least some providers
+	if len(providers) == 0 {
+		t.Error("No providers returned (expected at least some providers)")
 	}
 
 	// Verify total matches length
@@ -100,12 +100,12 @@ func TestListModelsTool_ResponseStructure(t *testing.T) {
 		t.Fatal("total field is not an integer")
 	}
 
-	if total != len(models) {
-		t.Errorf("total (%d) does not match models length (%d)", total, len(models))
+	if total != len(providers) {
+		t.Errorf("total (%d) does not match providers length (%d)", total, len(providers))
 	}
 }
 
-func TestListModelsTool_ModelStructure(t *testing.T) {
+func TestListModelsTool_ProviderStructure(t *testing.T) {
 	server := mcp.NewMCPServer("test", "1.0.0", nil, false)
 	RegisterListModelsTool(server)
 
@@ -119,28 +119,28 @@ func TestListModelsTool_ModelStructure(t *testing.T) {
 		t.Fatalf("Handler returned error: %v", err)
 	}
 
-	models, ok := result["models"].([]map[string]interface{})
+	providers, ok := result["providers"].([]map[string]interface{})
 	if !ok {
-		t.Fatal("models field is not an array of maps")
+		t.Fatal("providers field is not an array of maps")
 	}
 
-	if len(models) == 0 {
-		t.Fatal("No models to test")
+	if len(providers) == 0 {
+		t.Fatal("No providers to test")
 	}
 
-	// Check first model structure
-	model := models[0]
-	requiredModelFields := []string{
-		"name", "display_name", "api", "quality", "description",
-		"priority", "available", "requires_auth", "max_resolution",
-		"supported_sizes", "pricing", "pricing_summary",
+	// Check first provider structure
+	provider := providers[0]
+	requiredProviderFields := []string{
+		"provider_id", "name", "api", "model_id", "description",
+		"available", "missing_credentials",
+		"pricing", "pricing_summary",
 		"supports_styles", "supports_negative_prompt", "supports_seed",
-		"supported_styles", "max_prompt_length",
+		"max_prompt_length",
 	}
 
-	for _, field := range requiredModelFields {
-		if _, exists := model[field]; !exists {
-			t.Errorf("Required model field '%s' missing", field)
+	for _, field := range requiredProviderFields {
+		if _, exists := provider[field]; !exists {
+			t.Errorf("Required provider field '%s' missing", field)
 		}
 	}
 }
@@ -159,24 +159,24 @@ func TestListModelsTool_PricingStructure(t *testing.T) {
 		t.Fatalf("Handler returned error: %v", err)
 	}
 
-	models, ok := result["models"].([]map[string]interface{})
+	providers, ok := result["providers"].([]map[string]interface{})
 	if !ok {
-		t.Fatal("models field is not an array of maps")
+		t.Fatal("providers field is not an array of maps")
 	}
 
-	if len(models) == 0 {
-		t.Fatal("No models to test")
+	if len(providers) == 0 {
+		t.Fatal("No providers to test")
 	}
 
-	// Check first model's pricing structure
-	model := models[0]
-	pricing, ok := model["pricing"].(map[string]interface{})
+	// Check first provider's pricing structure
+	provider := providers[0]
+	pricing, ok := provider["pricing"].(map[string]interface{})
 	if !ok {
 		t.Fatal("pricing field is not a map")
 	}
 
 	// Required pricing fields
-	requiredPricingFields := []string{"billing_unit", "currency", "pricing_tier", "free_tier"}
+	requiredPricingFields := []string{"currency", "free_tier"}
 	for _, field := range requiredPricingFields {
 		if _, exists := pricing[field]; !exists {
 			t.Errorf("Required pricing field '%s' missing", field)
@@ -184,7 +184,7 @@ func TestListModelsTool_PricingStructure(t *testing.T) {
 	}
 }
 
-func TestListModelsTool_CredentialsStructure(t *testing.T) {
+func TestListModelsTool_ConfiguredCount(t *testing.T) {
 	server := mcp.NewMCPServer("test", "1.0.0", nil, false)
 	RegisterListModelsTool(server)
 
@@ -198,30 +198,35 @@ func TestListModelsTool_CredentialsStructure(t *testing.T) {
 		t.Fatalf("Handler returned error: %v", err)
 	}
 
-	credentials, ok := result["credentials"].(map[string]interface{})
+	configured, ok := result["configured"].(int)
 	if !ok {
-		t.Fatal("credentials field is not a map")
+		t.Fatal("configured field is not an integer")
 	}
 
-	// Check for credential status fields
-	requiredCredFields := []string{"gemini_configured", "vertex_configured"}
-	for _, field := range requiredCredFields {
-		if _, exists := credentials[field]; !exists {
-			t.Errorf("Required credentials field '%s' missing", field)
+	// configured should be 0 or positive
+	if configured < 0 {
+		t.Errorf("configured count is negative: %d", configured)
+	}
+
+	// Count providers marked as available
+	providers, ok := result["providers"].([]map[string]interface{})
+	if !ok {
+		t.Fatal("providers field is not an array of maps")
+	}
+
+	availableCount := 0
+	for _, p := range providers {
+		if available, ok := p["available"].(bool); ok && available {
+			availableCount++
 		}
 	}
 
-	// Verify they are booleans
-	if _, ok := credentials["gemini_configured"].(bool); !ok {
-		t.Error("gemini_configured is not a boolean")
-	}
-
-	if _, ok := credentials["vertex_configured"].(bool); !ok {
-		t.Error("vertex_configured is not a boolean")
+	if configured != availableCount {
+		t.Errorf("configured count (%d) doesn't match available providers (%d)", configured, availableCount)
 	}
 }
 
-func TestListModelsTool_DefaultModelStructure(t *testing.T) {
+func TestListModelsTool_DefaultProviderStructure(t *testing.T) {
 	server := mcp.NewMCPServer("test", "1.0.0", nil, false)
 	RegisterListModelsTool(server)
 
@@ -235,16 +240,16 @@ func TestListModelsTool_DefaultModelStructure(t *testing.T) {
 		t.Fatalf("Handler returned error: %v", err)
 	}
 
-	defaultModel, ok := result["default_model"].(map[string]interface{})
+	defaultProvider, ok := result["default_provider"].(map[string]interface{})
 	if !ok {
-		t.Fatal("default_model field is not a map")
+		t.Fatal("default_provider field is not a map")
 	}
 
-	// Check for default model fields
-	requiredDefaultFields := []string{"name", "display_name", "pricing_summary"}
+	// Check for default provider fields
+	requiredDefaultFields := []string{"provider_id", "name", "pricing_summary"}
 	for _, field := range requiredDefaultFields {
-		if _, exists := defaultModel[field]; !exists {
-			t.Errorf("Required default_model field '%s' missing", field)
+		if _, exists := defaultProvider[field]; !exists {
+			t.Errorf("Required default_provider field '%s' missing", field)
 		}
 	}
 }
@@ -268,8 +273,8 @@ func TestListModelsTool_RecommendationsStructure(t *testing.T) {
 		t.Fatal("recommendations field is not a map")
 	}
 
-	// Check for recommendation categories
-	requiredRecommendations := []string{"free_users", "paid_users", "max_quality"}
+	// Check for recommendation categories (updated for Provider system)
+	requiredRecommendations := []string{"free_users", "paid_users", "aws_users"}
 	for _, field := range requiredRecommendations {
 		if _, exists := recommendations[field]; !exists {
 			t.Errorf("Required recommendation '%s' missing", field)
@@ -284,7 +289,7 @@ func TestListModelsTool_RecommendationsStructure(t *testing.T) {
 	}
 }
 
-func TestListModelsTool_ModelAvailability(t *testing.T) {
+func TestListModelsTool_ProviderAvailability(t *testing.T) {
 	server := mcp.NewMCPServer("test", "1.0.0", nil, false)
 	RegisterListModelsTool(server)
 
@@ -298,72 +303,34 @@ func TestListModelsTool_ModelAvailability(t *testing.T) {
 		t.Fatalf("Handler returned error: %v", err)
 	}
 
-	models, ok := result["models"].([]map[string]interface{})
+	providers, ok := result["providers"].([]map[string]interface{})
 	if !ok {
-		t.Fatal("models field is not an array of maps")
+		t.Fatal("providers field is not an array of maps")
 	}
 
-	// Check that each model has an availability status
-	for i, model := range models {
-		available, exists := model["available"]
+	// Check that each provider has an availability status
+	for i, provider := range providers {
+		available, exists := provider["available"]
 		if !exists {
-			t.Errorf("Model %d missing 'available' field", i)
+			t.Errorf("Provider %d missing 'available' field", i)
 			continue
 		}
 
 		// Should be a boolean
 		if _, ok := available.(bool); !ok {
-			t.Errorf("Model %d 'available' field is not a boolean", i)
+			t.Errorf("Provider %d 'available' field is not a boolean", i)
 		}
 
-		// Check requires_auth field
-		requiresAuth, exists := model["requires_auth"]
+		// Check missing_credentials field
+		missingCreds, exists := provider["missing_credentials"]
 		if !exists {
-			t.Errorf("Model %d missing 'requires_auth' field", i)
+			t.Errorf("Provider %d missing 'missing_credentials' field", i)
 			continue
 		}
 
-		// requires_auth should be a string array
-		if _, ok := requiresAuth.([]string); !ok {
-			t.Errorf("Model %d 'requires_auth' field is not a string array", i)
-		}
-	}
-}
-
-func TestListModelsTool_ModelPriority(t *testing.T) {
-	server := mcp.NewMCPServer("test", "1.0.0", nil, false)
-	RegisterListModelsTool(server)
-
-	tool := server.GetTool("list_models")
-	if tool == nil {
-		t.Fatal("list_models tool not registered")
-	}
-
-	result, err := tool.Handler(map[string]interface{}{})
-	if err != nil {
-		t.Fatalf("Handler returned error: %v", err)
-	}
-
-	models, ok := result["models"].([]map[string]interface{})
-	if !ok {
-		t.Fatal("models field is not an array of maps")
-	}
-
-	// Verify models are sorted by priority
-	if len(models) < 2 {
-		t.Skip("Need at least 2 models to test priority sorting")
-	}
-
-	for i := 1; i < len(models); i++ {
-		prevPriority, ok1 := models[i-1]["priority"].(int)
-		currPriority, ok2 := models[i]["priority"].(int)
-
-		if !ok1 || !ok2 {
-			t.Fatal("priority field is not an integer")
-		}
-
-		if prevPriority > currPriority {
-			t.Errorf("Models not sorted by priority: %d > %d at position %d", prevPriority, currPriority, i)
+		// missing_credentials should be a string array
+		if _, ok := missingCreds.([]string); !ok {
+			t.Errorf("Provider %d 'missing_credentials' field is not a string array", i)
 		}
 	}
 }
@@ -391,7 +358,7 @@ func TestListModelsTool_PricingNote(t *testing.T) {
 		t.Error("pricing_note is empty")
 	}
 
-	// Should mention USD, free tier, and batch mode
+	// Should mention USD and providers
 	if len(pricingNote) < 50 {
 		t.Error("pricing_note seems too short to be informative")
 	}
@@ -411,17 +378,17 @@ func TestListModelsTool_APITypes(t *testing.T) {
 		t.Fatalf("Handler returned error: %v", err)
 	}
 
-	models, ok := result["models"].([]map[string]interface{})
+	providers, ok := result["providers"].([]map[string]interface{})
 	if !ok {
-		t.Fatal("models field is not an array of maps")
+		t.Fatal("providers field is not an array of maps")
 	}
 
 	// Track which APIs are present
 	apiTypes := make(map[string]bool)
-	for _, model := range models {
-		api, ok := model["api"].(string)
+	for _, provider := range providers {
+		api, ok := provider["api"].(string)
 		if !ok {
-			t.Error("Model api field is not a string")
+			t.Error("Provider api field is not a string")
 			continue
 		}
 		apiTypes[api] = true
@@ -429,7 +396,7 @@ func TestListModelsTool_APITypes(t *testing.T) {
 
 	// Should have at least one API type
 	if len(apiTypes) == 0 {
-		t.Error("No API types found in models")
+		t.Error("No API types found in providers")
 	}
 
 	// Valid API types

@@ -23,10 +23,10 @@ requirements and pricing. Use the subcommands to:
   test  - Test if authentication works for a provider
   setup - Interactively configure credentials for a provider
 
-The same model may be available through multiple providers with different
-pricing. For example, Gemini 2.5 Flash is available via:
-  - gemini/flash-2.5: FREE tier via Gemini API
-  - vertex/flash-2.5: $0.04/image via Vertex AI`,
+Different providers offer different models with different pricing:
+  - gemini/flash-2.5: FREE tier via Gemini API (500/day)
+  - vertex/imagen-4: $0.04/image via Vertex AI
+  - bedrock/nova-canvas: $0.08/image via AWS Bedrock`,
 	Example: `  # List all providers and auth status
   gimage auth list
 

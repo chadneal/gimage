@@ -272,11 +272,12 @@ func (l *Logger) Close() error {
 		return nil
 	}
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
+	// Log shutdown messages BEFORE acquiring lock
 	l.Log(INFO, "gimage shutdown")
 	l.Log(INFO, "==========================================")
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	return l.logFile.Close()
 }
