@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.2.60] - 2025-11-05
+
+### Added
+- Imagen 3 models support (`imagen-3.0-generate-001`, `imagen-3.0-generate-002`, `imagen-3.0-fast-generate-001`)
+- Model alias `imagen-3` for latest Imagen 3 model
+- Enhanced MCP end-to-end test coverage with model metadata validation
+
+### Changed
+- Updated model registry with comprehensive Imagen 3 and Imagen 4 model definitions
+- Improved provider auto-detection logic to handle both Imagen 3 and Imagen 4 models
+- Streamlined `models_test.go` using table-driven tests (197 → 151 lines)
+
+### Fixed
+- Resolved logger deadlock in auth commands by deferring stdout restoration
+- Fixed test suite reliability issues in model registry tests
+
+
 ## [1.2.58] - 2025-11-05
 
 ### Added
