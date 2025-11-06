@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (empty - ready for next release)
 
+## [1.2.58] - 2025-11-05
+
+### Added
+- **Provider System**: New architecture for AI backends with clean abstraction layer for Gemini, Vertex AI, and AWS Bedrock
+- **Model Registry**: Centralized system for model management and auto-detection
+- **Enhanced Auth Commands**: 
+  - `auth list` - Display all configured credentials and their status
+  - `auth setup` - Interactive setup wizard for configuring providers
+  - `auth test` - Validate credentials and test API connectivity
+- **Design Documentation**: Added `DESIGN.md` documenting provider architecture and patterns
+
+### Changed
+- **Major Refactor**: Migrated from monolithic `models.go` (643 lines) to modular `providers.go` (565 lines) with cleaner separation
+- **Auth Command Structure**: Reorganized authentication commands with new subcommands for better UX
+- **Generate Command**: Enhanced with improved provider selection logic and better error handling
+- **MCP Server**: Updated tools and prompts to work with new provider system
+- **Logging**: Improved context and verbosity handling across components
+
+### Removed
+- **Legacy Code**: Removed old model management system (`internal/generate/models.go` and tests)
+- **Test Files**: Cleaned up automated TUI tests (`automated_test.go`, `debug_test.go`)
+
+
 ## [1.1.54] - 2025-11-05
 
 ### Fixed
