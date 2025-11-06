@@ -137,52 +137,111 @@ For more information: https://github.com/apresai/gimage`,
 			fmt.Fprintln(os.Stderr, "[gimage-mcp] Tools: 10 registered")
 			fmt.Fprintln(os.Stderr, "")
 
-			// Show available models with pricing
-			fmt.Fprintln(os.Stderr, "[gimage-mcp] Discovering available models...")
+			// Show available providers with pricing
+			fmt.Fprintln(os.Stderr, "[gimage-mcp] Discovering available providers...")
 
-			hasGemini := config.HasGeminiCredentials()
-			hasVertex := config.HasVertexCredentials()
+			registry := generate.GetProviderRegistry()
+			statuses := registry.GetAuthStatus()
 
-			if !hasGemini && !hasVertex {
-				fmt.Fprintln(os.Stderr, "[gimage-mcp] ⚠️  No API credentials found")
-				fmt.Fprintln(os.Stderr, "[gimage-mcp]     Run: gimage auth gemini  (FREE tier, 500/day)")
-				fmt.Fprintln(os.Stderr, "[gimage-mcp]     Or:  gimage auth vertex  (Paid, higher quality)")
+			// Count configured providers
+			configuredCount := 0
+			for _, status := range statuses {
+				if status.Configured {
+					configuredCount++
+				}
+			}
+
+			if configuredCount == 0 {
+				fmt.Fprintln(os.Stderr, "[gimage-mcp] ⚠️  No providers configured")
+				fmt.Fprintln(os.Stderr, "[gimage-mcp]     Run: gimage auth setup gemini/flash-2.5  (FREE tier, 500/day)")
+				fmt.Fprintln(os.Stderr, "[gimage-mcp]     Or:  gimage auth setup vertex/imagen-4  (Paid, highest quality)")
 			} else {
-				fmt.Fprintln(os.Stderr, "[gimage-mcp] 📊 Available Models:")
+				fmt.Fprintf(os.Stderr, "[gimage-mcp] 📊 Available Providers (%d configured):\n", configuredCount)
 				fmt.Fprintln(os.Stderr, "")
 
-				if hasGemini {
-					geminiModels := generate.ListModelsByAPI("gemini")
-					fmt.Fprintf(os.Stderr, "[gimage-mcp] ✓ Gemini API - %d models available\n", len(geminiModels))
-					for _, m := range geminiModels {
-						priority := ""
-						if m.Priority == 1 {
-							priority = " ⭐ DEFAULT"
+				// Group by API
+				geminiProviders := []generate.AuthStatus{}
+				vertexProviders := []generate.AuthStatus{}
+				bedrockProviders := []generate.AuthStatus{}
+
+				for _, status := range statuses {
+					if !status.Configured {
+						continue
+					}
+					switch status.Provider.API {
+					case "gemini":
+						geminiProviders = append(geminiProviders, status)
+					case "vertex":
+						vertexProviders = append(vertexProviders, status)
+					case "bedrock":
+						bedrockProviders = append(bedrockProviders, status)
+					}
+				}
+
+				if len(geminiProviders) > 0 {
+					fmt.Fprintf(os.Stderr, "[gimage-mcp] ✓ Gemini API - %d provider(s) configured\n", len(geminiProviders))
+					for _, status := range geminiProviders {
+						p := status.Provider
+						pricingInfo := "Variable"
+						if p.Pricing.FreeTier {
+							pricingInfo = fmt.Sprintf("FREE (%s)", p.Pricing.FreeTierLimit)
+						} else if p.Pricing.CostPerImage != nil {
+							pricingInfo = fmt.Sprintf("$%.4f/image", *p.Pricing.CostPerImage)
 						}
-						pricingInfo := generate.FormatPricingDisplay(&m)
-						fmt.Fprintf(os.Stderr, "[gimage-mcp]   • %s - %s%s\n", m.DisplayName, pricingInfo, priority)
+						fmt.Fprintf(os.Stderr, "[gimage-mcp]   • %s - %s\n", p.Name, pricingInfo)
 					}
 					fmt.Fprintln(os.Stderr, "")
 				}
 
-				if hasVertex {
-					vertexModels := generate.ListModelsByAPI("vertex")
-					fmt.Fprintf(os.Stderr, "[gimage-mcp] ✓ Vertex AI - %d models available\n", len(vertexModels))
-					for _, m := range vertexModels {
-						pricingInfo := generate.FormatPricingDisplay(&m)
-						fmt.Fprintf(os.Stderr, "[gimage-mcp]   • %s - %s\n", m.DisplayName, pricingInfo)
+				if len(vertexProviders) > 0 {
+					fmt.Fprintf(os.Stderr, "[gimage-mcp] ✓ Vertex AI - %d provider(s) configured\n", len(vertexProviders))
+					for _, status := range vertexProviders {
+						p := status.Provider
+						pricingInfo := "Variable"
+						if p.Pricing.CostPerImage != nil {
+							pricingInfo = fmt.Sprintf("$%.4f/image", *p.Pricing.CostPerImage)
+						}
+						fmt.Fprintf(os.Stderr, "[gimage-mcp]   • %s - %s\n", p.Name, pricingInfo)
+					}
+					fmt.Fprintln(os.Stderr, "")
+				}
+
+				if len(bedrockProviders) > 0 {
+					fmt.Fprintf(os.Stderr, "[gimage-mcp] ✓ AWS Bedrock - %d provider(s) configured\n", len(bedrockProviders))
+					for _, status := range bedrockProviders {
+						p := status.Provider
+						pricingInfo := "Variable"
+						if p.Pricing.CostPerImage != nil {
+							pricingInfo = fmt.Sprintf("$%.4f/image", *p.Pricing.CostPerImage)
+						}
+						fmt.Fprintf(os.Stderr, "[gimage-mcp]   • %s - %s\n", p.Name, pricingInfo)
 					}
 					fmt.Fprintln(os.Stderr, "")
 				}
 			}
 
-			// Show default model
-			defaultModel, err := generate.SelectBestAvailableModel("")
-			if err == nil {
-				fmt.Fprintf(os.Stderr, "[gimage-mcp] 🎯 Default Model: %s (priority %d)\n", defaultModel.DisplayName, defaultModel.Priority)
-				fmt.Fprintf(os.Stderr, "[gimage-mcp]    %s\n", generate.FormatPricingDisplay(defaultModel))
+			// Show default provider (first configured, preferring free tier)
+			var defaultProvider *generate.Provider
+			for _, status := range statuses {
+				if status.Configured {
+					defaultProvider = status.Provider
+					if status.Provider.Pricing.FreeTier {
+						break // Prefer free tier
+					}
+				}
+			}
+
+			if defaultProvider != nil {
+				pricingInfo := "Variable"
+				if defaultProvider.Pricing.FreeTier {
+					pricingInfo = fmt.Sprintf("FREE (%s)", defaultProvider.Pricing.FreeTierLimit)
+				} else if defaultProvider.Pricing.CostPerImage != nil {
+					pricingInfo = fmt.Sprintf("$%.4f/image", *defaultProvider.Pricing.CostPerImage)
+				}
+				fmt.Fprintf(os.Stderr, "[gimage-mcp] 🎯 Default Provider: %s\n", defaultProvider.Name)
+				fmt.Fprintf(os.Stderr, "[gimage-mcp]    %s\n", pricingInfo)
 			} else {
-				fmt.Fprintln(os.Stderr, "[gimage-mcp] ⚠️  No default model available - missing credentials")
+				fmt.Fprintln(os.Stderr, "[gimage-mcp] ⚠️  No default provider available - missing credentials")
 			}
 
 			fmt.Fprintln(os.Stderr, "")

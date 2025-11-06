@@ -123,9 +123,15 @@ Examples:
 			return nil // Skip validation for list-models
 		}
 
-		// Require at least one argument (the prompt) if not listing models
+		// Check if --list-providers flag is set
+		listProviders, _ := cmd.Flags().GetBool("list-providers")
+		if listProviders {
+			return nil // Skip validation for list-providers
+		}
+
+		// Require at least one argument (the prompt) if not listing models or providers
 		if len(args) == 0 {
-			return fmt.Errorf("prompt is required (or use --list-models to see available models)")
+			return fmt.Errorf("prompt is required (or use --list-models or --list-providers to see available options)")
 		}
 
 		// Validate flags
@@ -144,6 +150,7 @@ Examples:
 func runGenerate(cmd *cobra.Command, args []string) error {
 	// Get flags
 	output, _ := cmd.Flags().GetString("output")
+	providerID, _ := cmd.Flags().GetString("provider")
 	api, _ := cmd.Flags().GetString("api")
 	apiKey, _ := cmd.Flags().GetString("api-key")
 	// project, _ := cmd.Flags().GetString("project") // TODO: Enable when Vertex is implemented
@@ -164,8 +171,14 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	negative, _ := cmd.Flags().GetString("negative")
 	seed, _ := cmd.Flags().GetInt64("seed")
 	listModels, _ := cmd.Flags().GetBool("list-models")
+	listProviders, _ := cmd.Flags().GetBool("list-providers")
 
-	// Handle --list-models flag
+	// Handle --list-providers flag
+	if listProviders {
+		return printAvailableProviders()
+	}
+
+	// Handle --list-models flag (legacy)
 	if listModels {
 		return printAvailableModels()
 	}
@@ -174,6 +187,11 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	prompt := strings.Join(args, " ")
 
 	printVerbose("Generating image with prompt: %s", prompt)
+
+	// Handle new provider system if --provider is specified
+	if providerID != "" {
+		return runGenerateWithProvider(cmd, prompt, providerID, output, size, style, negative, seed)
+	}
 
 	// Build generate options
 	options := models.GenerateOptions{
@@ -272,21 +290,22 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 			modelName = generate.DefaultModel
 		}
 
-		// Get model info and announce selection
-		modelInfo, _ := generate.GetModelInfo(modelName)
-		if modelInfo != nil {
-			printInfo("Using: %s (%s API)", modelInfo.DisplayName, modelInfo.API)
-			printInfo("Pricing: %s", generate.FormatPricingDisplay(modelInfo))
-
-			// Calculate estimated cost
-			cost, tokens, explanation := generate.GetEstimatedCost(modelInfo, size, 1)
-			if tokens > 0 {
-				printVerbose("Estimated: %s", explanation)
+		// Get provider info and announce selection
+		registry := generate.GetProviderRegistry()
+		provider, _ := registry.ResolveProvider(modelName)
+		if provider != nil {
+			printInfo("Using: %s (%s API)", provider.Name, provider.API)
+			pricingDisplay := "Variable"
+			if provider.Pricing.FreeTier {
+				pricingDisplay = fmt.Sprintf("FREE (%s)", provider.Pricing.FreeTierLimit)
+			} else if provider.Pricing.CostPerImage != nil {
+				pricingDisplay = fmt.Sprintf("$%.4f/image", *provider.Pricing.CostPerImage)
 			}
+			printInfo("Pricing: %s", pricingDisplay)
 
 			// Warn if expensive (cost > $0.05)
-			if cost > 0.05 {
-				fmt.Fprintf(os.Stderr, "⚠️  %s costs $%.4f/image\n", modelInfo.DisplayName, *modelInfo.Pricing.CostPerImage)
+			if provider.Pricing.CostPerImage != nil && *provider.Pricing.CostPerImage > 0.05 {
+				fmt.Fprintf(os.Stderr, "⚠️  %s costs $%.4f/image\n", provider.Name, *provider.Pricing.CostPerImage)
 			}
 		}
 
@@ -327,23 +346,22 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 			modelName = "imagen-4.0-generate-001" // Default Imagen model
 		}
 
-		// Get model info and announce selection
-		modelInfo, _ := generate.GetModelInfo(modelName)
-		if modelInfo != nil {
-			printInfo("Using: %s (%s API)", modelInfo.DisplayName, modelInfo.API)
-			printInfo("Pricing: %s", generate.FormatPricingDisplay(modelInfo))
-
-			// Calculate estimated cost
-			cost, tokens, explanation := generate.GetEstimatedCost(modelInfo, size, 1)
-			if tokens > 0 {
-				printVerbose("Estimated: %s", explanation)
-			} else {
-				printVerbose("Estimated: %s", explanation)
+		// Get provider info and announce selection
+		registry := generate.GetProviderRegistry()
+		provider, _ := registry.ResolveProvider(modelName)
+		if provider != nil {
+			printInfo("Using: %s (%s API)", provider.Name, provider.API)
+			pricingDisplay := "Variable"
+			if provider.Pricing.FreeTier {
+				pricingDisplay = fmt.Sprintf("FREE (%s)", provider.Pricing.FreeTierLimit)
+			} else if provider.Pricing.CostPerImage != nil {
+				pricingDisplay = fmt.Sprintf("$%.4f/image", *provider.Pricing.CostPerImage)
 			}
+			printInfo("Pricing: %s", pricingDisplay)
 
 			// Warn if expensive (cost > $0.05)
-			if cost > 0.05 {
-				fmt.Fprintf(os.Stderr, "⚠️  %s costs $%.4f/image\n", modelInfo.DisplayName, *modelInfo.Pricing.CostPerImage)
+			if provider.Pricing.CostPerImage != nil && *provider.Pricing.CostPerImage > 0.05 {
+				fmt.Fprintf(os.Stderr, "⚠️  %s costs $%.4f/image\n", provider.Name, *provider.Pricing.CostPerImage)
 			}
 		}
 
@@ -401,27 +419,28 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 		printVerbose("Using model: %s", modelName)
 
-		// Resolve model alias and show info
-		modelInfo, err := generate.GetModelInfo(modelName)
+		// Resolve provider alias and show info
+		registry := generate.GetProviderRegistry()
+		provider, err := registry.ResolveProvider(modelName)
 		if err != nil {
-			return fmt.Errorf("unknown model: %s", modelName)
+			return fmt.Errorf("unknown provider/model: %s", modelName)
 		}
 
 		// Use the resolved full model ID
-		resolvedModelID := modelInfo.Name
-		printVerbose("Resolved model ID: %s", resolvedModelID)
+		resolvedModelID := provider.ModelID
+		printVerbose("Resolved model ID: %s (Provider: %s)", resolvedModelID, provider.ID)
 
-		printVerbose("Model: %s (%s)", modelInfo.DisplayName, modelInfo.Quality)
-		printVerbose("Max resolution: %s", modelInfo.Pricing.MaxResolution)
+		printVerbose("Provider: %s", provider.Name)
+		printVerbose("Model ID: %s", provider.ModelID)
 
 		// Show pricing info
-		if !modelInfo.Free {
-			cost, _, explanation := generate.GetEstimatedCost(modelInfo, size, 1)
-			printVerbose("Estimated cost: %s", explanation)
+		if !provider.Pricing.FreeTier && provider.Pricing.CostPerImage != nil {
+			cost := *provider.Pricing.CostPerImage
+			printVerbose("Cost: $%.4f/image", cost)
 
 			// Warn if expensive (cost > $0.05)
 			if cost > 0.05 {
-				fmt.Fprintf(os.Stderr, "⚠️  %s costs $%.4f/image\n", modelInfo.DisplayName, *modelInfo.Pricing.CostPerImage)
+				fmt.Fprintf(os.Stderr, "⚠️  %s costs $%.4f/image\n", provider.Name, cost)
 			}
 		}
 
@@ -502,28 +521,239 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if modelInfo, err := generate.GetModelInfo(modelNameUsed); err == nil {
-		cost, tokens, _ := generate.GetEstimatedCost(modelInfo, size, 1)
-		if tokens > 0 {
-			printInfo("  Tokens used: ~%d tokens", tokens)
-		}
-		if cost > 0 {
-			printInfo("  Cost: $%.4f", cost)
-		} else if modelInfo.Pricing.FreeTier {
-			printInfo("  Cost: FREE (within daily limit)")
+	registry := generate.GetProviderRegistry()
+	if provider, err := registry.ResolveProvider(modelNameUsed); err == nil {
+		if provider.Pricing.FreeTier {
+			printInfo("  Cost: FREE (within %s)", provider.Pricing.FreeTierLimit)
+		} else if provider.Pricing.CostPerImage != nil {
+			printInfo("  Cost: $%.4f", *provider.Pricing.CostPerImage)
 		}
 	}
 
 	return nil
 }
 
-// printAvailableModels displays all available models in a formatted table
+// runGenerateWithProvider handles image generation using the new provider system
+func runGenerateWithProvider(cmd *cobra.Command, prompt, providerID, output, size, style, negative string, seed int64) error {
+	registry := generate.GetProviderRegistry()
+
+	// Resolve provider
+	provider, err := registry.ResolveProvider(providerID)
+	if err != nil {
+		// Show available providers on error
+		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
+		printAvailableProviders()
+		return fmt.Errorf("unknown provider: %s", providerID)
+	}
+
+	// Check authentication
+	hasAuth, missing, err := registry.CheckAuth(provider)
+	if err != nil {
+		return fmt.Errorf("failed to check authentication: %w", err)
+	}
+
+	if !hasAuth {
+		fmt.Fprintf(os.Stderr, "Provider '%s' is not configured.\n", provider.ID)
+		fmt.Fprintf(os.Stderr, "Missing credentials: %v\n\n", missing)
+		fmt.Fprintf(os.Stderr, "To set up authentication:\n")
+		fmt.Fprintf(os.Stderr, "  gimage auth setup %s\n", provider.ID)
+		return fmt.Errorf("authentication required")
+	}
+
+	// Show provider info
+	printInfo("Using provider: %s", provider.Name)
+	if provider.Pricing.FreeTier {
+		printInfo("Pricing: FREE (%s)", provider.Pricing.FreeTierLimit)
+	} else if provider.Pricing.CostPerImage != nil {
+		cost := *provider.Pricing.CostPerImage
+		printInfo("Pricing: $%.4f per image", cost)
+
+		// Warn if expensive
+		if cost > 0.05 {
+			fmt.Fprintf(os.Stderr, "⚠️  This will cost $%.4f per image\n", cost)
+		}
+	}
+
+	// Create client
+	printInfo("Creating client for %s...", provider.API)
+	client, err := registry.CreateClient(provider.ID)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+	defer client.Close()
+
+	// Prepare options
+	options := models.GenerateOptions{
+		Model:          provider.ModelID,
+		Size:           size,
+		Style:          style,
+		NegativePrompt: negative,
+		Seed:           seed,
+	}
+
+	// Generate image
+	printInfo("Generating image...")
+	ctx := context.Background()
+
+	startTime := time.Now()
+	generatedImage, err := client.GenerateImage(ctx, prompt, options)
+	if err != nil {
+		return fmt.Errorf("failed to generate image: %w", err)
+	}
+
+	elapsed := time.Since(startTime)
+	printInfo("Generation completed in %.2fs", elapsed.Seconds())
+
+	// Determine output path
+	if output == "" {
+		output = generate.GenerateOutputPath(generatedImage.Format)
+	}
+
+	// Save image
+	printInfo("Saving image to: %s", output)
+	if err := generate.SaveImage(generatedImage, output); err != nil {
+		return fmt.Errorf("failed to save image: %w", err)
+	}
+
+	// Print success with details
+	printSuccess("Image generated successfully!")
+	printInfo("  Provider: %s", provider.Name)
+	printInfo("  File: %s", output)
+	printInfo("  Size: %s", formatImageSize(int64(len(generatedImage.Data))))
+	printInfo("  Dimensions: %dx%d", generatedImage.Width, generatedImage.Height)
+
+	// Show cost info
+	if provider.Pricing.FreeTier {
+		printInfo("  Cost: FREE (within daily limit)")
+	} else if provider.Pricing.CostPerImage != nil {
+		printInfo("  Cost: $%.4f", *provider.Pricing.CostPerImage)
+	}
+
+	return nil
+}
+
+// printAvailableProviders prints the list of available providers with auth status
+func printAvailableProviders() error {
+	registry := generate.GetProviderRegistry()
+	statuses := registry.GetAuthStatus()
+
+	fmt.Println("Available Providers:")
+	fmt.Println(strings.Repeat("─", 80))
+	fmt.Println()
+
+	// Group by API
+	geminiProviders := []generate.AuthStatus{}
+	vertexProviders := []generate.AuthStatus{}
+	bedrockProviders := []generate.AuthStatus{}
+
+	for _, status := range statuses {
+		switch status.Provider.API {
+		case "gemini":
+			geminiProviders = append(geminiProviders, status)
+		case "vertex":
+			vertexProviders = append(vertexProviders, status)
+		case "bedrock":
+			bedrockProviders = append(bedrockProviders, status)
+		}
+	}
+
+	// Print Gemini providers
+	if len(geminiProviders) > 0 {
+		fmt.Println("Gemini API (Google AI Studio):")
+		for _, status := range geminiProviders {
+			printProviderStatus(status)
+		}
+		fmt.Println()
+	}
+
+	// Print Vertex providers
+	if len(vertexProviders) > 0 {
+		fmt.Println("Vertex AI (Google Cloud):")
+		for _, status := range vertexProviders {
+			printProviderStatus(status)
+		}
+		fmt.Println()
+	}
+
+	// Print Bedrock providers
+	if len(bedrockProviders) > 0 {
+		fmt.Println("AWS Bedrock:")
+		for _, status := range bedrockProviders {
+			printProviderStatus(status)
+		}
+		fmt.Println()
+	}
+
+	fmt.Println(strings.Repeat("─", 80))
+	fmt.Println("\nUsage:")
+	fmt.Println("  gimage generate \"prompt\" --provider <provider-id>")
+	fmt.Println("\nExamples:")
+	fmt.Println("  gimage generate \"sunset\" --provider gemini/flash-2.5")
+	fmt.Println("  gimage generate \"portrait\" --provider vertex/imagen-4")
+	fmt.Println("\nTo configure authentication:")
+	fmt.Println("  gimage auth setup <provider-id>")
+
+	return nil
+}
+
+func printProviderStatus(status generate.AuthStatus) {
+	p := status.Provider
+
+	// Status icon
+	statusIcon := "✗"
+	statusText := "Not configured"
+	if status.Configured {
+		statusIcon = "✓"
+		statusText = "Ready"
+	}
+
+	// Pricing
+	pricing := "Variable"
+	if p.Pricing.FreeTier {
+		pricing = fmt.Sprintf("FREE (%s)", p.Pricing.FreeTierLimit)
+	} else if p.Pricing.CostPerImage != nil {
+		pricing = fmt.Sprintf("$%.4f/image", *p.Pricing.CostPerImage)
+	}
+
+	fmt.Printf("  %s %-20s - %-30s [%s] %s\n",
+		statusIcon,
+		p.ID,
+		p.Name,
+		pricing,
+		statusText,
+	)
+}
+
+// printAvailableModels displays all available providers in a formatted table
 func printAvailableModels() error {
-	// Check which APIs have credentials
-	hasGemini := config.HasGeminiCredentials()
-	hasVertex := config.HasVertexCredentials()
-	hasBedrock := config.HasBedrockCredentials()
-	hasAnyAuth := hasGemini || hasVertex || hasBedrock
+	// Get provider registry and auth status
+	registry := generate.GetProviderRegistry()
+	statuses := registry.GetAuthStatus()
+
+	// Group providers by API
+	geminiProviders := []generate.AuthStatus{}
+	vertexProviders := []generate.AuthStatus{}
+	bedrockProviders := []generate.AuthStatus{}
+
+	for _, status := range statuses {
+		switch status.Provider.API {
+		case "gemini":
+			geminiProviders = append(geminiProviders, status)
+		case "vertex":
+			vertexProviders = append(vertexProviders, status)
+		case "bedrock":
+			bedrockProviders = append(bedrockProviders, status)
+		}
+	}
+
+	// Check if any auth is configured
+	hasAnyAuth := false
+	for _, status := range statuses {
+		if status.Configured {
+			hasAnyAuth = true
+			break
+		}
+	}
 
 	// ASCII art header
 	printInfo("\n╔═══════════════════════════════════════════════════════════════════════════════╗")
@@ -535,16 +765,22 @@ func printAvailableModels() error {
 	printInfo("║    ██║  ██║ ╚████╔╝ ██║  ██║██║███████╗██║  ██║██████╔╝███████╗███████╗     ║")
 	printInfo("║    ╚═╝  ╚═╝  ╚═══╝  ╚═╝  ╚═╝╚═╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝     ║")
 	printInfo("║                                                                               ║")
-	printInfo("║               🎨  AI Image Generation Models  🎨                              ║")
+	printInfo("║               🎨  AI Image Generation Providers  🎨                           ║")
 	printInfo("║                                                                               ║")
 	printInfo("╚═══════════════════════════════════════════════════════════════════════════════╝\n")
 
 	if !hasAnyAuth {
-		printWarning("⚠️  No API credentials configured. Set up authentication to use these models:\n")
+		printWarning("⚠️  No API credentials configured. Set up authentication to use these providers:\n")
 	}
 
-	// Print Gemini models - ALWAYS show, indicate auth status
-	geminiModels := generate.ListModelsByAPI("gemini")
+	// Print Gemini providers - ALWAYS show, indicate auth status
+	hasGemini := false
+	for _, status := range geminiProviders {
+		if status.Configured {
+			hasGemini = true
+			break
+		}
+	}
 	printInfo("┌─────────────────────────────────────────────────────────────────────────────────┐")
 	if hasGemini {
 		printSuccess("│ ✓ Gemini API (AUTHENTICATED - Free Tier Available)                             │")
@@ -552,39 +788,42 @@ func printAvailableModels() error {
 		printWarning("│ ○ Gemini API (NOT AUTHENTICATED - Setup: gimage auth gemini)                   │")
 	}
 	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
-	printInfo("│ Models:                                                                         │")
+	printInfo("│ Providers:                                                                      │")
 	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
-	for _, m := range geminiModels {
-		pricing := generate.FormatPricingDisplay(&m)
-		priorityMark := fmt.Sprintf("%d", m.Priority)
-		if m.Name == generate.DefaultModel {
-			priorityMark = fmt.Sprintf("%d ⭐", m.Priority)
+	for _, status := range geminiProviders {
+		p := status.Provider
+		// Format pricing
+		pricingDisplay := "Variable"
+		if p.Pricing.FreeTier {
+			pricingDisplay = fmt.Sprintf("FREE (%s)", p.Pricing.FreeTierLimit)
+		} else if p.Pricing.CostPerImage != nil {
+			pricingDisplay = fmt.Sprintf("$%.4f/image", *p.Pricing.CostPerImage)
 		}
+
 		authMark := greenYes()
-		if !hasGemini {
+		if !status.Configured {
 			authMark = redNo()
 		}
-		// Display exact name first (what users should use), then aliases in parentheses
-		displayName := m.Name
-		if alias := generate.GetPreferredAlias(m.Name); alias != "" {
-			displayName = fmt.Sprintf("%s (alias: %s)", m.Name, alias)
-		}
-		// Print model name and display name on first line (73 chars for model name)
-		paddedName := padRight(displayName, 73)
+		// Display provider name (73 chars for name)
+		paddedName := padRight(p.Name, 73)
 		printInfo("│ %s  %s │", authMark, paddedName)
 		// Print details on second line (indented)
-		printInfo("│     Priority: %-3s  Pricing: %-55s │", priorityMark, pricing)
+		printInfo("│     Provider ID: %-20s  Pricing: %-35s │", p.ID, pricingDisplay)
 		if viper.GetBool("verbose") {
-			printVerbose("│     %s", m.Description)
-			if m.Pricing.TokensPerImage != nil {
-				printVerbose("│     Tokens per image: ~%d", *m.Pricing.TokensPerImage)
-			}
+			printVerbose("│     %s", p.Description)
+			printVerbose("│     Model ID: %s", p.ModelID)
 		}
 	}
 	printInfo("└─────────────────────────────────────────────────────────────────────────────────┘\n")
 
-	// Print Vertex models - ALWAYS show, indicate auth status
-	vertexModels := generate.ListModelsByAPI("vertex")
+	// Print Vertex providers - ALWAYS show, indicate auth status
+	hasVertex := false
+	for _, status := range vertexProviders {
+		if status.Configured {
+			hasVertex = true
+			break
+		}
+	}
 	printInfo("┌─────────────────────────────────────────────────────────────────────────────────┐")
 	if hasVertex {
 		printSuccess("│ ✓ Vertex AI (AUTHENTICATED - Paid, Requires GCP)                               │")
@@ -592,36 +831,40 @@ func printAvailableModels() error {
 		printWarning("│ ○ Vertex AI (NOT AUTHENTICATED - Setup: gimage auth vertex)                    │")
 	}
 	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
-	printInfo("│ Models:                                                                         │")
+	printInfo("│ Providers:                                                                      │")
 	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
-	for _, m := range vertexModels {
-		pricing := generate.FormatPricingDisplay(&m)
-		priorityMark := fmt.Sprintf("%d", m.Priority)
-		if m.Quality == "premium" {
-			priorityMark = fmt.Sprintf("%d ★", m.Priority)
+	for _, status := range vertexProviders {
+		p := status.Provider
+		// Format pricing
+		pricingDisplay := "Variable"
+		if p.Pricing.CostPerImage != nil {
+			pricingDisplay = fmt.Sprintf("$%.4f/image", *p.Pricing.CostPerImage)
 		}
+
 		authMark := greenYes()
-		if !hasVertex {
+		if !status.Configured {
 			authMark = redNo()
 		}
-		// Display exact name first (what users should use), then aliases in parentheses
-		displayName := m.Name
-		if alias := generate.GetPreferredAlias(m.Name); alias != "" {
-			displayName = fmt.Sprintf("%s (alias: %s)", m.Name, alias)
-		}
-		// Print model name and display name on first line (73 chars for model name)
-		paddedName := padRight(displayName, 73)
+		// Display provider name (73 chars for name)
+		paddedName := padRight(p.Name, 73)
 		printInfo("│ %s  %s │", authMark, paddedName)
 		// Print details on second line (indented)
-		printInfo("│     Priority: %-3s  Pricing: %-55s │", priorityMark, pricing)
+		printInfo("│     Provider ID: %-20s  Pricing: %-35s │", p.ID, pricingDisplay)
 		if viper.GetBool("verbose") {
-			printVerbose("│     %s", m.Description)
+			printVerbose("│     %s", p.Description)
+			printVerbose("│     Model ID: %s", p.ModelID)
 		}
 	}
 	printInfo("└─────────────────────────────────────────────────────────────────────────────────┘\n")
 
-	// Print Bedrock models - ALWAYS show, indicate auth status
-	bedrockModels := generate.ListModelsByAPI("bedrock")
+	// Print Bedrock providers - ALWAYS show, indicate auth status
+	hasBedrock := false
+	for _, status := range bedrockProviders {
+		if status.Configured {
+			hasBedrock = true
+			break
+		}
+	}
 	printInfo("┌─────────────────────────────────────────────────────────────────────────────────┐")
 	if hasBedrock {
 		printSuccess("│ ✓ AWS Bedrock (AUTHENTICATED - Paid, Requires AWS)                             │")
@@ -629,30 +872,28 @@ func printAvailableModels() error {
 		printWarning("│ ○ AWS Bedrock (NOT AUTHENTICATED - Setup: gimage auth bedrock)                 │")
 	}
 	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
-	printInfo("│ Models:                                                                         │")
+	printInfo("│ Providers:                                                                      │")
 	printInfo("├─────────────────────────────────────────────────────────────────────────────────┤")
-	for _, m := range bedrockModels {
-		pricing := generate.FormatPricingDisplay(&m)
-		priorityMark := fmt.Sprintf("%d", m.Priority)
-		if m.Quality == "premium" {
-			priorityMark = fmt.Sprintf("%d ★", m.Priority)
+	for _, status := range bedrockProviders {
+		p := status.Provider
+		// Format pricing
+		pricingDisplay := "Variable"
+		if p.Pricing.CostPerImage != nil {
+			pricingDisplay = fmt.Sprintf("$%.4f/image", *p.Pricing.CostPerImage)
 		}
+
 		authMark := greenYes()
-		if !hasBedrock {
+		if !status.Configured {
 			authMark = redNo()
 		}
-		// Display exact name first (what users should use), then aliases in parentheses
-		displayName := m.Name
-		if alias := generate.GetPreferredAlias(m.Name); alias != "" {
-			displayName = fmt.Sprintf("%s (alias: %s)", m.Name, alias)
-		}
-		// Print model name and display name on first line (73 chars for model name)
-		paddedName := padRight(displayName, 73)
+		// Display provider name (73 chars for name)
+		paddedName := padRight(p.Name, 73)
 		printInfo("│ %s  %s │", authMark, paddedName)
 		// Print details on second line (indented)
-		printInfo("│     Priority: %-3s  Pricing: %-55s │", priorityMark, pricing)
+		printInfo("│     Provider ID: %-20s  Pricing: %-35s │", p.ID, pricingDisplay)
 		if viper.GetBool("verbose") {
-			printVerbose("│     %s", m.Description)
+			printVerbose("│     %s", p.Description)
+			printVerbose("│     Model ID: %s", p.ModelID)
 		}
 	}
 	printInfo("└─────────────────────────────────────────────────────────────────────────────────┘\n")
@@ -662,9 +903,6 @@ func printAvailableModels() error {
 	printInfo("╠═══════════════════════════════════════════════════════════════════════════════╣")
 	printInfo("║  %s  = Authenticated (ready to use)                                          ║", greenYes())
 	printInfo("║  %s  = Not authenticated (run setup command)                                 ║", redNo())
-	printInfo("║  ⭐  = Default model (auto-selected)                                          ║")
-	printInfo("║  ★  = Premium quality                                                        ║")
-	printInfo("║  Lower priority number = higher priority for auto-selection                 ║")
 	printInfo("╚═══════════════════════════════════════════════════════════════════════════════╝")
 
 	printInfo("\n╔═══════════════════════════════════════════════════════════════════════════════╗")
@@ -672,19 +910,19 @@ func printAvailableModels() error {
 	printInfo("╠═══════════════════════════════════════════════════════════════════════════════╣")
 	printInfo("║  Usage: gimage generate \"your prompt\" --model <model-name>                   ║")
 	printInfo("╠═══════════════════════════════════════════════════════════════════════════════╣")
-	printInfo("║  Recommended Models:                                                          ║")
+	printInfo("║  Recommended Providers:                                                       ║")
 	if hasGemini {
 		printInfo("║    ✓ Free users:  gemini (500/day FREE)                                       ║")
 	} else {
 		printInfo("║    ○ Free users:  gemini (setup: gimage auth gemini)                          ║")
 	}
 	if hasVertex {
-		printInfo("║    ✓ Paid users:  imagen-4-fast ($0.02/image, fastest paid)                  ║")
+		printInfo("║    ✓ Paid users:  imagen-4 ($0.04/image, highest quality)                    ║")
 	} else {
-		printInfo("║    ○ Paid users:  imagen-4-fast (setup: gimage auth vertex)                  ║")
+		printInfo("║    ○ Paid users:  imagen-4 (setup: gimage auth vertex)                       ║")
 	}
 	if hasBedrock {
-		printInfo("║    ✓ AWS users:   nova-canvas ($0.04/image standard, $0.08 premium)          ║")
+		printInfo("║    ✓ AWS users:   nova-canvas ($0.08/image)                                  ║")
 	} else {
 		printInfo("║    ○ AWS users:   nova-canvas (setup: gimage auth bedrock)                   ║")
 	}
@@ -694,7 +932,7 @@ func printAvailableModels() error {
 		printInfo("║    gimage generate \"sunset\" --model gemini                                   ║")
 	}
 	if hasVertex {
-		printInfo("║    gimage generate \"abstract art\" --model imagen-4-fast                      ║")
+		printInfo("║    gimage generate \"abstract art\" --model imagen-4                           ║")
 	}
 	if hasBedrock {
 		printInfo("║    gimage generate \"landscape\" --api bedrock                                 ║")
@@ -719,12 +957,14 @@ func printAvailableModels() error {
 
 func init() {
 	generateCmd.Flags().StringP("output", "o", "", "Output file path (default: generated_<timestamp>.png)")
-	generateCmd.Flags().String("api", "", "API to use: gemini or vertex (auto-detected from model if not specified)")
+	generateCmd.Flags().String("provider", "", "Provider to use (e.g., gemini/flash-2.5, vertex/imagen-4)")
+	generateCmd.Flags().String("api", "", "API to use: gemini or vertex (deprecated, use --provider)")
 	generateCmd.Flags().String("api-key", "", "Gemini API key (or use GEMINI_API_KEY env var)")
 	generateCmd.Flags().String("project", "", "Vertex AI project ID (or use GIMAGE_VERTEX_PROJECT env var)")
 	generateCmd.Flags().String("location", "us-central1", "Vertex AI location")
-	generateCmd.Flags().String("model", "", fmt.Sprintf("Model to use (default: %s). Use --list-models to see all", generate.DefaultModel))
+	generateCmd.Flags().String("model", "", fmt.Sprintf("Model to use (deprecated, use --provider). Default: %s", generate.DefaultModel))
 	generateCmd.Flags().Bool("list-models", false, "List all available models and exit")
+	generateCmd.Flags().Bool("list-providers", false, "List all available providers with pricing and auth status")
 	generateCmd.Flags().String("size", "1024x1024", "Image size (e.g., 1024x1024, 512x512)")
 	generateCmd.Flags().String("style", "", "Image style: photorealistic, artistic, anime")
 	generateCmd.Flags().String("negative", "", "Negative prompt to avoid certain features")

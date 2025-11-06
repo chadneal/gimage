@@ -16,7 +16,7 @@ import (
 func RegisterGenerateImageTool(server *mcp.MCPServer) {
 	tool := mcp.Tool{
 		Name:        "generate_image",
-		Description: "Generate an AI image from a text prompt using Gemini, Vertex AI, or AWS Bedrock. Quick start: generate_image(prompt='sunset over mountains', output='~/Desktop/sunset.png') uses the default free model (Gemini 2.5 Flash, 1024x1024). For higher quality, use model='imagen-4' (paid, requires Vertex AI). Supports various sizes up to 2048x2048, style controls (photorealistic, artistic, anime), negative prompts to exclude unwanted elements, and seeds for reproducible generation. IMPORTANT: Always specify an output path (e.g., ~/Desktop/image.png or ~/Documents/image.png) to ensure the file is saved to an accessible location.",
+		Description: "Generate AI images using multiple providers (Gemini, Vertex AI, AWS Bedrock). Call list_models first to see available providers with pricing. Quick start: generate_image(prompt='sunset', output='~/Desktop/sunset.png') uses the default FREE provider (Gemini 2.5 Flash, 500/day, 1024x1024). For higher quality, use model='imagen-4' (Imagen 4 via Vertex AI, $0.04/image, up to 2048x2048). Supports styles (photorealistic, artistic, anime), negative prompts, and seeds for reproducibility. IMPORTANT: Always specify output path (e.g., ~/Desktop/image.png).",
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: false, // Creates new files but doesn't modify existing ones
 			IdempotentHint:  false, // Each call generates a different image
@@ -36,7 +36,7 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 				"size": map[string]interface{}{
 					"type":        "string",
 					"enum":        []string{"256x256", "512x512", "1024x1024", "1024x1792", "1792x1024", "2048x2048"},
-					"description": "Image dimensions (WIDTHxHEIGHT). Default: 1024x1024. Gemini supports up to 1024x1024. Larger sizes (1792x1024, 2048x2048) require Vertex AI with imagen-4. Examples: '1024x1024' (square), '1792x1024' (16:9 landscape), '1024x1792' (9:16 portrait), '2048x2048' (ultra HD).",
+					"description": "Image dimensions (WIDTHxHEIGHT). Default: 1024x1024. Provider limits: gemini/flash-2.5 up to 1024x1024, vertex/imagen-4 up to 2048x2048, bedrock/nova-canvas up to 1408x1408. Examples: '1024x1024' (square), '1792x1024' (16:9 landscape), '1024x1792' (9:16 portrait), '2048x2048' (ultra HD with imagen-4).",
 					"default":     "1024x1024",
 				},
 				"model": map[string]interface{}{
@@ -52,7 +52,7 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 						"nova-canvas",
 						"amazon.nova-canvas-v1:0",
 					},
-					"description": "AI model to use. Supports exact names or aliases. Common aliases: 'gemini' or 'gemini-flash' for gemini-2.5-flash-image (default, FREE up to 1500/day, supports up to 1024x1024), 'imagen' or 'imagen-4' for imagen-4.0-generate-001 (paid $0.02-0.04/image, highest quality, supports up to 2048x2048), 'nova-canvas' for amazon.nova-canvas-v1:0 (paid $0.04-0.08/image, supports up to 1408x1408). Invalid model names automatically fall back to default. Examples: 'gemini' (quick iterations), 'imagen-4' (final high-quality output).",
+					"description": "Provider/model to use. Call list_models to see all options with pricing. Common choices: 'gemini' (FREE 500/day, gemini/flash-2.5 provider, up to 1024x1024), 'imagen-4' ($0.04/image, vertex/imagen-4 provider, up to 2048x2048, highest quality), 'nova-canvas' ($0.08/image, bedrock/nova-canvas provider, AWS integration). Aliases automatically resolve to correct provider. Falls back to gemini if invalid. TIP: Use gemini for iterations, imagen-4 for final production.",
 					"default":     "gemini-2.5-flash-image",
 				},
 				"style": map[string]interface{}{
@@ -109,10 +109,11 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 			// Resolve model aliases to exact names (e.g., "gemini" -> "gemini-2.5-flash-image")
 			modelName = generate.ResolveModelName(modelName)
 
-			// Validate model exists, fallback to default if not
-			_, modelErr := generate.GetModelInfo(modelName)
-			if modelErr != nil {
-				// Model not found, fallback to default free model
+			// Validate provider/model exists, fallback to default if not
+			registry := generate.GetProviderRegistry()
+			_, providerErr := registry.ResolveProvider(modelName)
+			if providerErr != nil {
+				// Provider not found, fallback to default free model
 				modelName = "gemini-2.5-flash-image"
 			}
 
@@ -218,18 +219,20 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 				absOutput = output
 			}
 
-			// Get model info for cost tracking and announcement
-			modelInfo, _ := generate.GetModelInfo(modelName)
+			// Get provider info for pricing display
+			provider, _ := registry.ResolveProvider(modelName)
 			var modelDisplayName string
 			var pricingInfo string
-			var estimatedCost float64
-			var tokensUsed int
-			var costExplanation string
 
-			if modelInfo != nil {
-				modelDisplayName = modelInfo.DisplayName
-				pricingInfo = generate.FormatPricingDisplay(modelInfo)
-				estimatedCost, tokensUsed, costExplanation = generate.GetEstimatedCost(modelInfo, size, 1)
+			if provider != nil {
+				modelDisplayName = provider.Name
+				if provider.Pricing.FreeTier {
+					pricingInfo = fmt.Sprintf("FREE (%s)", provider.Pricing.FreeTierLimit)
+				} else if provider.Pricing.CostPerImage != nil {
+					pricingInfo = fmt.Sprintf("$%.4f/image", *provider.Pricing.CostPerImage)
+				} else {
+					pricingInfo = "Variable"
+				}
 			} else {
 				modelDisplayName = modelName
 				pricingInfo = "Unknown"
@@ -247,28 +250,8 @@ func RegisterGenerateImageTool(server *mcp.MCPServer) {
 				"prompt":        prompt,
 			}
 
-			// Add cost and token information
-			if tokensUsed > 0 {
-				result["tokens_used"] = tokensUsed
-			}
-			if estimatedCost > 0 {
-				result["estimated_cost"] = estimatedCost
-				result["cost_explanation"] = costExplanation
-			} else if modelInfo != nil && modelInfo.Pricing.FreeTier {
-				result["estimated_cost"] = 0
-				result["cost_explanation"] = "FREE (within daily limit)"
-			}
-
 			// Create user-friendly message
-			msg := fmt.Sprintf("Generated using %s (%s). ", modelDisplayName, pricingInfo)
-			if tokensUsed > 0 {
-				msg += fmt.Sprintf("Used ~%d tokens. ", tokensUsed)
-			}
-			if estimatedCost > 0 {
-				msg += fmt.Sprintf("Cost: $%.4f", estimatedCost)
-			} else if modelInfo != nil && modelInfo.Pricing.FreeTier {
-				msg += "Cost: FREE"
-			}
+			msg := fmt.Sprintf("Generated using %s (%s)", modelDisplayName, pricingInfo)
 			result["message"] = msg
 
 			// Add warning if we had to fall back to a different location

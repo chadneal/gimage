@@ -13,10 +13,28 @@ import (
 // authCmd represents the auth command
 var authCmd = &cobra.Command{
 	Use:   "auth",
-	Short: "Manage authentication for Gemini, Vertex AI, and AWS Bedrock",
-	Long: `Interactive authentication setup for Gemini API, Vertex AI, and AWS Bedrock.
+	Short: "Manage authentication for all image generation providers",
+	Long: `Manage authentication credentials for all supported providers.
 
-This command helps you configure your API credentials securely.`,
+Each provider (Gemini API, Vertex AI, AWS Bedrock) has specific credential
+requirements and pricing. Use the subcommands to:
+
+  list  - View all providers and their authentication status
+  test  - Test if authentication works for a provider
+  setup - Interactively configure credentials for a provider
+
+The same model may be available through multiple providers with different
+pricing. For example, Gemini 2.5 Flash is available via:
+  - gemini/flash-2.5: FREE tier via Gemini API
+  - vertex/flash-2.5: $0.04/image via Vertex AI`,
+	Example: `  # List all providers and auth status
+  gimage auth list
+
+  # Set up Gemini authentication
+  gimage auth setup gemini
+
+  # Test if Vertex AI works
+  gimage auth test vertex/imagen-4`,
 }
 
 // authGeminiCmd handles Gemini API authentication
@@ -62,6 +80,11 @@ AWS Bedrock supports multiple authentication methods:
 
 func init() {
 	rootCmd.AddCommand(authCmd)
+	// New provider-based commands
+	authCmd.AddCommand(authListCmd)
+	authCmd.AddCommand(authTestCmd)
+	authCmd.AddCommand(authSetupCmd)
+	// Legacy commands (kept for backward compatibility)
 	authCmd.AddCommand(authGeminiCmd)
 	authCmd.AddCommand(authVertexCmd)
 	authCmd.AddCommand(authBedrockCmd)

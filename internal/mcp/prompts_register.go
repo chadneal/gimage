@@ -7,25 +7,31 @@ func RegisterAllPrompts(server *MCPServer) {
 	server.RegisterPrompt(Prompt{
 		Name:        "gimage_quick_start",
 		Title:       "Get Started with gimage",
-		Description: "Learn how to generate your first AI image using the free Gemini model",
+		Description: "Learn how to generate your first AI image using the free Gemini provider",
 		Arguments:   []PromptArgument{},
 		Template: `I want to generate an AI image using gimage. Here's how to get started:
 
-STEP 1: Generate a simple image using the free Gemini model
+STEP 1: Check available providers
+Call list_models to see all providers with pricing:
+- Free option: Gemini 2.5 Flash (500 images/day FREE)
+- Paid options: Imagen 4, Nova Canvas
+
+STEP 2: Generate a simple image using the free Gemini provider
 Call generate_image with:
 - prompt: "a sunset over mountains"
 - output: "~/Desktop/sunset.png"
-- (model defaults to gemini-2.5-flash-image - FREE!)
-
-STEP 2: Check the result
-The tool will return the output path and cost information.
-For Gemini, it's FREE (up to 1500 images/day).
+- (defaults to gemini-2.5-flash-image provider - FREE!)
 
 EXAMPLE:
 generate_image(
   prompt="a sunset over mountains",
   output="~/Desktop/sunset.png"
 )
+
+Result will show:
+- Output path
+- Provider used (Gemini 2.5 Flash via Gemini API)
+- Pricing: FREE (500/day)
 
 That's it! The image will be saved to your Desktop.`,
 	})
@@ -61,7 +67,7 @@ generate_image(
 )
 
 NOTE: Gemini is free and works great for most use cases.
-For highest quality, use model="imagen-4" (paid, $0.02-0.04 per image).`,
+For highest quality, use model="imagen-4" (Imagen 4 via Vertex AI, paid, $0.04 per image).`,
 	})
 
 	// 3. Generate and Crop Workflow - Multi-step workflow
@@ -104,18 +110,23 @@ EXAMPLE (Hero Image 1024x400):
 TIP: Use get_image_info first to verify actual image dimensions before cropping.`,
 	})
 
-	// 4. High Quality Generation - When to use paid models
+	// 4. High Quality Generation - When to use paid providers
 	server.RegisterPrompt(Prompt{
 		Name:        "high_quality_image",
 		Title:       "Generate High-Quality Professional Images",
-		Description: "Learn when and how to use paid models (Imagen 4) for professional-quality images",
+		Description: "Learn when and how to use paid providers (Imagen 4 via Vertex AI) for professional-quality images",
 		Arguments: []PromptArgument{
 			{Name: "subject", Description: "What to generate", Required: true},
 		},
 		Template: `I want to generate a high-quality image of {{subject}} for professional use.
 
-RECOMMENDED: Use Imagen 4 for highest quality
+STEP 1: Check providers with list_models
+This shows all providers with pricing and capabilities:
+- gemini/flash-2.5: FREE (500/day), up to 1024x1024
+- vertex/imagen-4: $0.04/image, up to 2048x2048 (highest quality)
+- bedrock/nova-canvas: $0.08/image, up to 1408x1408
 
+STEP 2: Use Imagen 4 for highest quality
 generate_image(
   prompt="{{subject}}, ultra detailed, professional quality, 8k",
   model="imagen-4",
@@ -123,13 +134,15 @@ generate_image(
   output="~/Desktop/{{subject}}_hq.png"
 )
 
-COST BREAKDOWN:
-- Gemini (free): Good quality, up to 1024x1024, FREE
-- Imagen-4 (paid): Highest quality, up to 2048x2048, $0.02-0.04 per image
+PROVIDER COMPARISON:
+- Gemini (gemini/flash-2.5): Good quality, FREE, best for iterations
+- Imagen 4 (vertex/imagen-4): Highest quality, $0.04/image, best for final work
+- Nova Canvas (bedrock/nova-canvas): High quality, $0.08/image, AWS integration
 
 WHEN TO USE EACH:
-- Gemini: Quick iterations, testing prompts, social media
-- Imagen-4: Final production images, professional work, large sizes
+- Gemini: Quick iterations, testing prompts, social media, FREE
+- Imagen-4: Final production images, professional work, large sizes (2048x2048)
+- Nova: AWS-integrated workflows, comparable quality to Imagen
 
 EXAMPLE:
 generate_image(
@@ -139,7 +152,8 @@ generate_image(
   output="~/Desktop/headshot_hq.png"
 )
 
-NOTE: Requires Vertex AI setup. Run 'gimage auth vertex' first.`,
+NOTE: Imagen 4 requires Vertex AI setup. Run 'gimage auth vertex' first.
+Nova Canvas requires AWS Bedrock setup. Run 'gimage auth bedrock' first.`,
 	})
 
 	// 5. Web Optimization Workflow - Multi-tool advanced workflow
@@ -185,37 +199,45 @@ TIP: You can also use batch_process_images for multiple files at once!`,
 		Arguments:   []PromptArgument{},
 		Template: `I encountered an error when using gimage. Here are common issues and solutions:
 
-ERROR: "Model not found: gemini-flash"
-SOLUTION: Use exact model names or common aliases
+ERROR: "Provider/model not found"
+SOLUTION: Check available providers first
+1. Call list_models to see all available providers
+2. Use common aliases: "gemini", "imagen-4", "nova-canvas"
 ✅ CORRECT: model="gemini" or model="gemini-2.5-flash-image"
-❌ WRONG: model="gemini-flash" or model="flash"
+✅ CORRECT: model="imagen-4" (resolves to vertex/imagen-4 provider)
 
 ERROR: "Gemini API key not configured"
 SOLUTION: Set up authentication first
 Run: gimage auth gemini
 Then retry your generate_image call
 
+ERROR: "Missing credentials for Imagen 4 (via Vertex AI)"
+SOLUTION: Set up Vertex AI authentication
+Run: gimage auth vertex
+Requires: GCP project ID and service account or API key
+
 ERROR: "crop region (x=0 + width=1792 = 1792) exceeds image width 1024"
-SOLUTION: Check actual image dimensions before cropping
-1. Use get_image_info to check dimensions
-2. Gemini max size is 1024x1024 (not 1792x1024)
-3. For larger sizes, use model="imagen-4"
+SOLUTION: Check provider size limits
+1. Call list_models to see max dimensions per provider
+2. Gemini: up to 1024x1024
+3. Imagen 4: up to 2048x2048
+4. Use get_image_info to verify actual dimensions before cropping
 
 ERROR: "unknown flag: --width" (when using crop)
 SOLUTION: crop_image uses positional arguments, not flags
 ✅ CORRECT: crop_image(input="file.png", x=0, y=100, width=800, height=600)
 ❌ WRONG: crop_image(input="file.png", --width=800, --height=600)
 
-ERROR: Image dimensions are wrong (e.g., 1024x1024 instead of 1792x1024)
-SOLUTION: Check model size limits
-- Gemini supports up to 1024x1024
-- Imagen-4 supports up to 2048x2048
-- Use get_image_info to verify actual dimensions
+PROVIDER SIZE LIMITS:
+- gemini/flash-2.5: up to 1024x1024
+- vertex/imagen-4: up to 2048x2048
+- bedrock/nova-canvas: up to 1408x1408
 
 GENERAL TIPS:
-1. Always specify output path (e.g., ~/Desktop/image.png)
-2. Start with Gemini (free) for testing
-3. Use verbose mode for debugging: add --verbose flag
-4. Check get_image_info before cropping`,
+1. Call list_models first to check providers, pricing, and auth status
+2. Always specify output path (e.g., ~/Desktop/image.png)
+3. Start with Gemini (free) for testing
+4. Use get_image_info before cropping to verify dimensions
+5. Check provider capabilities with list_models`,
 	})
 }

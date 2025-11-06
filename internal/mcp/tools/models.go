@@ -1,9 +1,8 @@
 package tools
 
 import (
-	"sort"
+	"fmt"
 
-	"github.com/apresai/gimage/internal/config"
 	"github.com/apresai/gimage/internal/generate"
 	"github.com/apresai/gimage/internal/mcp"
 )
@@ -12,112 +11,107 @@ import (
 func RegisterListModelsTool(server *mcp.MCPServer) {
 	tool := mcp.Tool{
 		Name:        "list_models",
-		Description: "List all available AI image generation models with detailed pricing, capabilities, and authentication requirements. Shows which models are currently accessible based on configured credentials. Returns comprehensive pricing information including cost per image, token usage, free tiers, and batch pricing.",
+		Description: "List all available AI image generation providers with pricing, capabilities, and authentication status. Use this FIRST to discover: which providers are configured and ready to use, pricing for each provider (FREE vs paid), size limits (1024x1024 vs 2048x2048), and which credentials are missing. Returns provider IDs (e.g., 'gemini/flash-2.5', 'vertex/imagen-4'), pricing (FREE 500/day, $0.04/image, etc.), and availability status. RECOMMENDED: Call this before generate_image to choose the best provider for your needs.",
 		InputSchema: map[string]interface{}{
 			"type":       "object",
 			"properties": map[string]interface{}{},
 		},
 		Handler: func(args map[string]interface{}) (map[string]interface{}, error) {
-			// Get all models from generate package (single source of truth)
-			allModels := generate.AvailableModels()
+			// Use the Provider system (single source of truth)
+			registry := generate.GetProviderRegistry()
+			statuses := registry.GetAuthStatus()
 
-			// Check credentials
-			hasGemini := config.HasGeminiCredentials()
-			hasVertex := config.HasVertexCredentials()
-
-			// Build model list with availability
-			models := []map[string]interface{}{}
-			for _, m := range allModels {
-				available := false
-				if m.API == "gemini" && hasGemini {
-					available = true
-				} else if m.API == "vertex" && hasVertex {
-					available = true
-				}
+			// Build provider list with availability
+			providers := []map[string]interface{}{}
+			for _, status := range statuses {
+				p := status.Provider
 
 				// Convert pricing info to map
 				pricingMap := map[string]interface{}{
-					"billing_unit": m.Pricing.BillingUnit,
-					"currency":     m.Pricing.Currency,
-					"pricing_tier": m.Pricing.PricingTier,
-					"free_tier":    m.Pricing.FreeTier,
+					"currency":   p.Pricing.Currency,
+					"free_tier":  p.Pricing.FreeTier,
 				}
 
-				if m.Pricing.CostPerImage != nil {
-					pricingMap["cost_per_image"] = *m.Pricing.CostPerImage
+				if p.Pricing.CostPerImage != nil {
+					pricingMap["cost_per_image"] = *p.Pricing.CostPerImage
 				}
-				if m.Pricing.TokensPerImage != nil {
-					pricingMap["tokens_per_image"] = *m.Pricing.TokensPerImage
-				}
-				if m.Pricing.FreeTierLimit != "" {
-					pricingMap["free_tier_limit"] = m.Pricing.FreeTierLimit
-				}
-				if m.Pricing.BatchModeAvailable {
-					pricingMap["batch_mode_available"] = true
-					if m.Pricing.BatchModeCost != nil {
-						pricingMap["batch_cost_per_image"] = *m.Pricing.BatchModeCost
-					}
+				if p.Pricing.FreeTierLimit != "" {
+					pricingMap["free_tier_limit"] = p.Pricing.FreeTierLimit
 				}
 
-				modelData := map[string]interface{}{
-					"name":            m.Name,
-					"display_name":    m.DisplayName,
-					"api":             m.API,
-					"quality":         m.Quality,
-					"description":     m.Description,
-					"priority":        m.Priority,
-					"available":       available,
-					"requires_auth":   m.RequiresAuth,
-					"max_resolution":  m.Pricing.MaxResolution,
-					"supported_sizes": m.Pricing.SupportedSizes,
+				// Format pricing summary
+				pricingSummary := "Variable"
+				if p.Pricing.FreeTier {
+					pricingSummary = fmt.Sprintf("FREE (%s)", p.Pricing.FreeTierLimit)
+				} else if p.Pricing.CostPerImage != nil {
+					pricingSummary = fmt.Sprintf("$%.4f/image", *p.Pricing.CostPerImage)
+				}
+
+				providerData := map[string]interface{}{
+					"provider_id":     p.ID,
+					"name":            p.Name,
+					"api":             p.API,
+					"model_id":        p.ModelID,
+					"description":     p.Description,
+					"available":       status.Configured,
+					"missing_credentials": status.Missing,
 
 					// Pricing information
 					"pricing":         pricingMap,
-					"pricing_summary": generate.FormatPricingDisplay(&m),
+					"pricing_summary": pricingSummary,
 
 					// Capabilities
-					"supports_styles":         m.Capabilities.SupportsStyles,
-					"supports_negative_prompt": m.Capabilities.SupportsNegativePrompt,
-					"supports_seed":           m.Capabilities.SupportsSeed,
-					"supported_styles":        m.Capabilities.SupportedStyles,
-					"max_prompt_length":       m.Capabilities.MaxPromptLength,
+					"supports_styles":          p.Capabilities.SupportsStyles,
+					"supports_negative_prompt": p.Capabilities.SupportsNegativePrompt,
+					"supports_seed":            p.Capabilities.SupportsSeed,
+					"max_prompt_length":        p.Capabilities.MaxPromptLength,
 				}
 
-				models = append(models, modelData)
+				providers = append(providers, providerData)
 			}
 
-			// Sort by priority
-			sort.Slice(models, func(i, j int) bool {
-				return models[i]["priority"].(int) < models[j]["priority"].(int)
-			})
+			// Get default provider (first configured one, preferring free tier)
+			var defaultProviderID string
+			var defaultProviderName string
+			var defaultProviderPricing string
+			for _, status := range statuses {
+				if status.Configured {
+					defaultProviderID = status.Provider.ID
+					defaultProviderName = status.Provider.Name
+					if status.Provider.Pricing.FreeTier {
+						defaultProviderPricing = fmt.Sprintf("FREE (%s)", status.Provider.Pricing.FreeTierLimit)
+					} else if status.Provider.Pricing.CostPerImage != nil {
+						defaultProviderPricing = fmt.Sprintf("$%.4f/image", *status.Provider.Pricing.CostPerImage)
+					}
+					// Prefer free tier, so break on first free provider
+					if status.Provider.Pricing.FreeTier {
+						break
+					}
+				}
+			}
 
-			// Get default model
-			var defaultModelName string
-			var defaultModelDisplay string
-			var defaultModelPricing string
-			if defaultModel, err := generate.SelectBestAvailableModel(""); err == nil {
-				defaultModelName = defaultModel.Name
-				defaultModelDisplay = defaultModel.DisplayName
-				defaultModelPricing = generate.FormatPricingDisplay(defaultModel)
+			// Count configured providers
+			configuredCount := 0
+			for _, status := range statuses {
+				if status.Configured {
+					configuredCount++
+				}
 			}
 
 			return map[string]interface{}{
-				"models": models,
-				"total":  len(models),
-				"credentials": map[string]interface{}{
-					"gemini_configured": hasGemini,
-					"vertex_configured": hasVertex,
+				"providers": providers,
+				"total":     len(providers),
+				"configured": configuredCount,
+				"default_provider": map[string]interface{}{
+					"provider_id":     defaultProviderID,
+					"name":            defaultProviderName,
+					"pricing_summary": defaultProviderPricing,
 				},
-				"default_model": map[string]interface{}{
-					"name":           defaultModelName,
-					"display_name":   defaultModelDisplay,
-					"pricing_summary": defaultModelPricing,
-				},
-				"pricing_note": "Costs shown are in USD. Free tier limits reset daily. Token-based models (Gemini) charge based on image complexity (~1290 tokens/image for standard photos). Batch mode offers ~50% discount for async processing.",
+				"pricing_note": "Costs shown are in USD. Free tier limits reset daily. Providers represent specific ways to access models (e.g., gemini/flash-2.5 vs vertex/flash-2.5 use the same model but different APIs with different pricing).",
 				"recommendations": map[string]interface{}{
-					"free_users": "gemini-2.5-flash-image (500 FREE images/day, excellent quality)",
-					"paid_users": "imagen-4.0-fast-generate-001 ($0.02/image, fastest paid option)",
-					"max_quality": "imagen-4.0-ultra-generate-001 ($0.06/image, highest fidelity)",
+					"free_users":  "gemini/flash-2.5 (500 FREE images/day via Gemini API)",
+					"paid_users":  "vertex/imagen-4 ($0.04/image, highest quality)",
+					"aws_users":   "bedrock/nova-canvas ($0.08/image, AWS integration)",
 				},
 			}, nil
 		},

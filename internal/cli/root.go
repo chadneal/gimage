@@ -239,10 +239,10 @@ func logAuthStatus(logger *logging.Logger) {
 		logger.LogAuthStatus("AWS Bedrock", false, "No credentials configured")
 	}
 
-	// Log available models
-	logger.LogInfo("Available models:")
-	for _, m := range generate.AvailableModels() {
-		api, _ := generate.DetectAPIFromModel(m.Name)
-		logger.LogInfo("  - %s (API: %s, Free: %v)", m.Name, api, m.Pricing.FreeTier)
+	// Log available providers
+	logger.LogInfo("Available providers:")
+	registry := generate.GetProviderRegistry()
+	for _, p := range registry.List() {
+		logger.LogInfo("  - %s (API: %s, Free: %v)", p.ID, p.API, p.Pricing.FreeTier)
 	}
 }

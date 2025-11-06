@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apresai/gimage/internal/config"
 	"github.com/apresai/gimage/internal/generate"
 	"github.com/apresai/gimage/internal/logging"
 	"github.com/apresai/gimage/pkg/models"
@@ -25,23 +24,26 @@ type GenerateStep int
 
 const (
 	StepPrompt GenerateStep = iota
-	StepModel
+	StepProvider  // Select provider (was StepModel)
 	StepSize
 	StepStyle
 	StepOutput
 	StepCommand  // Show command preview before generating
 	StepProgress
-	StepModelRetry  // NEW: Select a different model if first one fails
+	StepProviderRetry  // NEW: Select a different provider if first one fails
 	StepResult
 )
 
-// Model selection item
-type modelOption struct {
-	name        string
-	displayName string
-	description string
-	cost        string
+// Provider selection item
+type providerOption struct {
+	id          string // e.g., "gemini/flash-2.5"
+	name        string // e.g., "Gemini 2.5 Flash (via Gemini API)"
+	api         string // e.g., "gemini", "vertex", "bedrock"
+	model       string // e.g., "gemini-2.5-flash-image"
+	cost        string // formatted cost string
 	free        bool
+	configured  bool   // whether authentication is set up
+	missing     []string // missing credentials
 }
 
 // Size selection item
@@ -67,10 +69,10 @@ type GenerateFlowModel struct {
 	// Step 1: Prompt input
 	promptTextarea textarea.Model
 
-	// Step 2: Model selection
-	models         []modelOption
-	selectedModel  int
-	modelInfo      *generate.ModelInfo
+	// Step 2: Provider selection
+	providers         []providerOption
+	selectedProvider  int
+	providerRegistry  *generate.ProviderRegistry
 
 	// Step 3: Size selection
 	sizes        []sizeOption
@@ -100,13 +102,13 @@ type GenerateFlowModel struct {
 	generationTime time.Duration
 	err            error
 
-	// Model retry state
-	retryModels           []modelOption
-	selectedRetryModel    int
-	customModelInput      textinput.Model
-	showCustomModelInput  bool
+	// Provider retry state
+	retryProviders        []providerOption
+	selectedRetryProvider int
+	customProviderInput   textinput.Model
+	showCustomProviderInput  bool
 	lastGenerationError   string
-	modelRetryInput       textinput.Model
+	providerRetryInput    textinput.Model
 
 	// Error context for retry
 	errorContext struct {
@@ -152,17 +154,32 @@ func NewGenerateFlowModel() *GenerateFlowModel {
 	// Initialize progress bar
 	prog := progress.New(progress.WithDefaultGradient())
 
-	// Load available models
-	availableModels := generate.AvailableModels()
-	modelOpts := make([]modelOption, 0, len(availableModels))
-	for _, m := range availableModels {
-		cost := generate.FormatPricingDisplay(&m)
-		modelOpts = append(modelOpts, modelOption{
-			name:        m.Name,
-			displayName: m.DisplayName,
-			description: m.Description,
-			cost:        cost,
-			free:        m.Pricing.FreeTier,
+	// Load available providers
+	registry := generate.GetProviderRegistry()
+	statuses := registry.GetAuthStatus()
+	providerOpts := make([]providerOption, 0, len(statuses))
+
+	for _, status := range statuses {
+		p := status.Provider
+		cost := "Variable"
+		free := false
+
+		if p.Pricing.FreeTier {
+			cost = fmt.Sprintf("FREE (%s)", p.Pricing.FreeTierLimit)
+			free = true
+		} else if p.Pricing.CostPerImage != nil {
+			cost = fmt.Sprintf("$%.4f/image", *p.Pricing.CostPerImage)
+		}
+
+		providerOpts = append(providerOpts, providerOption{
+			id:         p.ID,
+			name:       p.Name,
+			api:        p.API,
+			model:      p.ModelID,
+			cost:       cost,
+			free:       free,
+			configured: status.Configured,
+			missing:    status.Missing,
 		})
 	}
 
@@ -183,28 +200,29 @@ func NewGenerateFlowModel() *GenerateFlowModel {
 		{"anime", "Anime", "Anime and manga style"},
 	}
 
-	// Initialize model retry input
-	modelRetryInput := textinput.New()
-	modelRetryInput.Placeholder = "e.g., imagen-4, nova-canvas, or full model ID"
-	modelRetryInput.CharLimit = 100
-	modelRetryInput.Width = 70
+	// Initialize provider retry input
+	providerRetryInput := textinput.New()
+	providerRetryInput.Placeholder = "e.g., gemini/flash-2.5, vertex/imagen-4"
+	providerRetryInput.CharLimit = 100
+	providerRetryInput.Width = 70
 
 	return &GenerateFlowModel{
-		currentStep:       StepPrompt,
-		promptTextarea:    ta,
-		models:            modelOpts,
-		selectedModel:     0,
-		sizes:             sizeOpts,
-		selectedSize:      0,
-		customWidth:       widthInput,
-		customHeight:      heightInput,
-		styles:            styleOpts,
-		selectedStyle:     0,
-		outputInput:       outputInput,
-		progressBar:       prog,
-		modelRetryInput:   modelRetryInput,
-		retryModels:       modelOpts,
-		selectedRetryModel: 0,
+		currentStep:           StepPrompt,
+		promptTextarea:        ta,
+		providers:             providerOpts,
+		selectedProvider:      0,
+		providerRegistry:      registry,
+		sizes:                 sizeOpts,
+		selectedSize:          0,
+		customWidth:           widthInput,
+		customHeight:          heightInput,
+		styles:                styleOpts,
+		selectedStyle:         0,
+		outputInput:           outputInput,
+		progressBar:           prog,
+		providerRetryInput:    providerRetryInput,
+		retryProviders:        providerOpts,
+		selectedRetryProvider: 0,
 	}
 }
 
@@ -260,11 +278,11 @@ func (m *GenerateFlowModel) Update(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
 		m.lastGenerationError = ""
 		if msg.err != nil {
 			m.lastGenerationError = msg.err.Error()
-			// Go to model retry step if generation failed
-			m.currentStep = StepModelRetry
+			// Go to provider retry step if generation failed
+			m.currentStep = StepProviderRetry
 			// Log the failure
 			logger := logging.GetLogger()
-			logger.LogError("Generation failed with model %s: %v", m.models[m.selectedModel].name, msg.err)
+			logger.LogError("Generation failed with provider %s: %v", m.providers[m.selectedProvider].id, msg.err)
 		} else {
 			m.currentStep = StepResult
 		}
@@ -275,8 +293,8 @@ func (m *GenerateFlowModel) Update(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
 	switch m.currentStep {
 	case StepPrompt:
 		return m.updatePromptStep(msg)
-	case StepModel:
-		return m.updateModelStep(msg)
+	case StepProvider:
+		return m.updateProviderStep(msg)
 	case StepSize:
 		return m.updateSizeStep(msg)
 	case StepStyle:
@@ -292,8 +310,8 @@ func (m *GenerateFlowModel) Update(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
 		m.progressBar = progModel.(progress.Model)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
-	case StepModelRetry:
-		return m.updateModelRetryStep(msg)
+	case StepProviderRetry:
+		return m.updateProviderRetryStep(msg)
 	case StepResult:
 		return m.updateResultStep(msg)
 	}
@@ -310,8 +328,8 @@ func (m *GenerateFlowModel) View() string {
 	switch m.currentStep {
 	case StepPrompt:
 		return m.viewPromptStep()
-	case StepModel:
-		return m.viewModelStep()
+	case StepProvider:
+		return m.viewProviderStep()
 	case StepSize:
 		return m.viewSizeStep()
 	case StepStyle:
@@ -322,8 +340,8 @@ func (m *GenerateFlowModel) View() string {
 		return m.viewCommandStep()
 	case StepProgress:
 		return m.viewProgressStep()
-	case StepModelRetry:
-		return m.viewModelRetryStep()
+	case StepProviderRetry:
+		return m.viewProviderRetryStep()
 	case StepResult:
 		return m.viewResultStep()
 	default:
@@ -350,7 +368,7 @@ func (m *GenerateFlowModel) updatePromptStep(msg tea.Msg) (*GenerateFlowModel, t
 		case "enter":
 			// Enter submits (move to next step) if prompt is not empty
 			if len(strings.TrimSpace(m.promptTextarea.Value())) > 0 {
-				m.currentStep = StepModel
+				m.currentStep = StepProvider
 				return m, nil
 			}
 		case "shift+enter":
@@ -388,25 +406,26 @@ func (m *GenerateFlowModel) viewPromptStep() string {
 }
 
 // Step 2: Model Selection
-func (m *GenerateFlowModel) updateModelStep(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
+func (m *GenerateFlowModel) updateProviderStep(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
 		case "up", "k":
-			if m.selectedModel > 0 {
-				m.selectedModel--
+			if m.selectedProvider > 0 {
+				m.selectedProvider--
 			}
 		case "down", "j":
-			if m.selectedModel < len(m.models)-1 {
-				m.selectedModel++
+			if m.selectedProvider < len(m.providers)-1 {
+				m.selectedProvider++
 			}
 		case "enter", " ":
-			// Load model info and move to next step
-			modelInfo, err := generate.GetModelInfo(m.models[m.selectedModel].name)
-			if err != nil {
-				m.err = err
+			// Check if provider is configured
+			provider := m.providers[m.selectedProvider]
+			if !provider.configured {
+				m.err = fmt.Errorf("provider '%s' is not configured\nMissing: %s\nRun: gimage auth setup %s",
+					provider.id, strings.Join(provider.missing, ", "), provider.id)
 				return m, nil
 			}
-			m.modelInfo = modelInfo
+			// Move to next step
 			m.currentStep = StepSize
 			return m, nil
 		}
@@ -414,34 +433,38 @@ func (m *GenerateFlowModel) updateModelStep(msg tea.Msg) (*GenerateFlowModel, te
 	return m, nil
 }
 
-func (m *GenerateFlowModel) viewModelStep() string {
+func (m *GenerateFlowModel) viewProviderStep() string {
 	var items []string
 
-	for i, model := range m.models {
+	for i, provider := range m.providers {
 		var style lipgloss.Style
 		cursor := "  "
-		if i == m.selectedModel {
+		if i == m.selectedProvider {
 			style = SelectedMenuItemStyle
 			cursor = "> "
 		} else {
 			style = MenuItemStyle
 		}
 
-		// Show free badge
-		badge := ""
-		if model.free {
-			badge = SuccessStyle.Render(" [FREE]")
+		// Show badges
+		badges := ""
+		if provider.free {
+			badges += SuccessStyle.Render(" [FREE]")
+		}
+		if !provider.configured {
+			badges += ErrorStyle.Render(" [NOT CONFIGURED]")
 		}
 
-		title := style.Render(cursor + model.displayName + badge)
-		desc := MutedStyle.Render("  " + model.description)
-		cost := MutedStyle.Render("  Cost: " + model.cost)
+		// Format the provider info
+		title := style.Render(cursor + provider.name + badges)
+		desc := MutedStyle.Render("  Provider: " + provider.id + " | API: " + provider.api)
+		cost := MutedStyle.Render("  Cost: " + provider.cost)
 
 		items = append(items, title+"\n"+desc+"\n"+cost)
 	}
 
 	content := TitleStyle.Render("Generate Image - Step 2/7") + "\n\n" +
-		SubtitleStyle.Render("Select AI Model") + "\n\n" +
+		SubtitleStyle.Render("Select Provider") + "\n\n" +
 		strings.Join(items, "\n\n") + "\n\n" +
 		HelpStyle.Render("↑/↓: Navigate • Enter: Select • Esc: Back")
 
@@ -702,7 +725,7 @@ func (m *GenerateFlowModel) buildCommand() {
 	// Build command
 	cmdParts := []string{
 		fmt.Sprintf("gimage generate \"%s\"", prompt),
-		fmt.Sprintf("--model %s", m.models[m.selectedModel].name),
+		fmt.Sprintf("--provider %s", m.providers[m.selectedProvider].id),
 		fmt.Sprintf("--size %s", size),
 	}
 
@@ -733,14 +756,15 @@ func (m *GenerateFlowModel) updateCommandStep(msg tea.Msg) (*GenerateFlowModel, 
 }
 
 func (m *GenerateFlowModel) viewCommandStep() string {
-	// Display API that will be used
-	api, _ := generate.DetectAPIFromModel(m.models[m.selectedModel].name)
-	apiDisplay := strings.ToUpper(api)
+	// Display provider info
+	provider := m.providers[m.selectedProvider]
+	apiDisplay := strings.ToUpper(provider.api)
 
 	content := TitleStyle.Render("Generate Image - Step 6/7") + "\n\n" +
 		SubtitleStyle.Render("Verify Your Command") + "\n\n" +
+		FormatKeyValue("Provider", provider.name) + "\n" +
 		FormatKeyValue("API", apiDisplay) + "\n" +
-		FormatKeyValue("Model", m.models[m.selectedModel].displayName) + "\n\n" +
+		FormatKeyValue("Model", provider.model) + "\n\n" +
 		MutedStyle.Render("Equivalent CLI Command:") + "\n\n" +
 		CodeBlockStyle.Render(m.commandStr) + "\n\n" +
 		WarningStyle.Render("You can copy this command and run it manually:") + "\n" +
@@ -912,79 +936,95 @@ func (m *GenerateFlowModel) renderHelp() string {
 }
 
 // Step 8: Model Retry
-func (m *GenerateFlowModel) updateModelRetryStep(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
+func (m *GenerateFlowModel) updateProviderRetryStep(msg tea.Msg) (*GenerateFlowModel, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
 		case "up", "k":
-			// Navigate up in model list
-			if m.selectedRetryModel > 0 {
-				m.selectedRetryModel--
+			// Navigate up in provider list
+			if m.selectedRetryProvider > 0 {
+				m.selectedRetryProvider--
 			}
 			return m, nil
 
 		case "down", "j":
-			// Navigate down in model list
-			if m.selectedRetryModel < len(m.retryModels) {
-				m.selectedRetryModel++
+			// Navigate down in provider list
+			if m.selectedRetryProvider < len(m.retryProviders) {
+				m.selectedRetryProvider++
 			}
 			return m, nil
 
 		case "enter":
-			if m.selectedRetryModel < len(m.retryModels) {
-				// Selected a model from the grid
-				selectedModel := m.retryModels[m.selectedRetryModel]
+			if m.selectedRetryProvider < len(m.retryProviders) {
+				// Selected a provider from the grid
+				selectedProvider := m.retryProviders[m.selectedRetryProvider]
 
-				// Find the index in the main models list
-				for i, m2 := range m.models {
-					if m2.name == selectedModel.name {
-						m.selectedModel = i
+				// Find the index in the main providers list
+				for i, p := range m.providers {
+					if p.id == selectedProvider.id {
+						m.selectedProvider = i
 						break
 					}
 				}
 
 				// Log the retry
 				logger := logging.GetLogger()
-				logger.LogInfo("User selected model %s for retry after previous failure", selectedModel.displayName)
+				logger.LogInfo("User selected provider %s for retry after previous failure", selectedProvider.name)
 
 				// Rebuild command and go to generation
 				m.buildCommand()
 				m.currentStep = StepCommand
 				return m, nil
-			} else if m.showCustomModelInput {
-				// User entered a custom model
-				customModel := m.modelRetryInput.Value()
-				if customModel != "" {
-					m.selectedModel = 0 // Will be overridden in generation
-
-					// Try to resolve the model
-					if resolvedName, err := resolveCustomModelName(customModel); err == nil {
-						// Create a temporary model option for the custom model
-						tempModel := modelOption{
-							name:        resolvedName,
-							displayName: customModel,
-							description: "Custom model",
-							cost:        "?",
-							free:        false,
+			} else if m.showCustomProviderInput {
+				// User entered a custom provider ID
+				customProviderID := m.providerRetryInput.Value()
+				if customProviderID != "" {
+					// Try to resolve the provider
+					if provider, err := m.providerRegistry.ResolveProvider(customProviderID); err == nil {
+						// Check if provider is configured
+						hasAuth, _, _ := m.providerRegistry.CheckAuth(provider)
+						if !hasAuth {
+							m.err = fmt.Errorf("provider '%s' is not configured", provider.ID)
+							return m, nil
 						}
 
-						// Add to models list if not already there
+						// Create a temporary provider option
+						cost := "Variable"
+						free := false
+						if provider.Pricing.FreeTier {
+							cost = fmt.Sprintf("FREE (%s)", provider.Pricing.FreeTierLimit)
+							free = true
+						} else if provider.Pricing.CostPerImage != nil {
+							cost = fmt.Sprintf("$%.4f/image", *provider.Pricing.CostPerImage)
+						}
+
+						tempProvider := providerOption{
+							id:         provider.ID,
+							name:       provider.Name,
+							api:        provider.API,
+							model:      provider.ModelID,
+							cost:       cost,
+							free:       free,
+							configured: hasAuth,
+						}
+
+						// Add to providers list if not already there
 						found := false
-						for _, m2 := range m.models {
-							if m2.name == resolvedName {
+						for i, p := range m.providers {
+							if p.id == provider.ID {
 								found = true
-								m.selectedModel = len(m.models) - 1
+								m.selectedProvider = i
 								break
 							}
 						}
 
 						if !found {
-							m.models = append(m.models, tempModel)
-							m.selectedModel = len(m.models) - 1
+							m.providers = append(m.providers, tempProvider)
+							m.selectedProvider = len(m.providers) - 1
 						}
 
-						// Log the custom model selection
+						// Log the custom provider selection
 						logger := logging.GetLogger()
-						logger.LogInfo("User selected custom model: %s (resolved to %s)", customModel, resolvedName)
+						logger.LogInfo("User selected custom provider: %s", customProviderID)
 
 						// Rebuild command and go to generation
 						m.buildCommand()
@@ -992,17 +1032,17 @@ func (m *GenerateFlowModel) updateModelRetryStep(msg tea.Msg) (*GenerateFlowMode
 						return m, nil
 					} else {
 						logger := logging.GetLogger()
-						logger.LogError("Failed to resolve custom model: %s", customModel)
+						logger.LogError("Failed to resolve custom provider: %s", customProviderID)
 					}
 				}
 			}
 
 		case "c":
 			// Show custom model input
-			m.showCustomModelInput = !m.showCustomModelInput
-			if m.showCustomModelInput {
-				m.modelRetryInput.Focus()
-				m.modelRetryInput.SetValue("")
+			m.showCustomProviderInput = !m.showCustomProviderInput
+			if m.showCustomProviderInput {
+				m.providerRetryInput.Focus()
+				m.providerRetryInput.SetValue("")
 			}
 			return m, nil
 
@@ -1014,30 +1054,30 @@ func (m *GenerateFlowModel) updateModelRetryStep(msg tea.Msg) (*GenerateFlowMode
 	}
 
 	// If custom input is active, let the input handle it
-	if m.showCustomModelInput {
+	if m.showCustomProviderInput {
 		var cmd tea.Cmd
-		m.modelRetryInput, cmd = m.modelRetryInput.Update(msg)
+		m.providerRetryInput, cmd = m.providerRetryInput.Update(msg)
 		return m, cmd
 	}
 
 	return m, nil
 }
 
-func (m *GenerateFlowModel) viewModelRetryStep() string {
-	// Build model grid
-	gridContent := m.renderModelGrid()
+func (m *GenerateFlowModel) viewProviderRetryStep() string {
+	// Build provider grid
+	gridContent := m.renderProviderGrid()
 
-	content := TitleStyle.Render("Generation Failed - Select Another Model") + "\n\n" +
+	content := TitleStyle.Render("Generation Failed - Select Another Provider") + "\n\n" +
 		ErrorStyle.Render("✗ "+m.lastGenerationError) + "\n\n" +
-		SubtitleStyle.Render("Choose a different model to retry:") + "\n\n" +
+		SubtitleStyle.Render("Choose a different provider to retry:") + "\n\n" +
 		gridContent + "\n\n"
 
-	if m.showCustomModelInput {
-		content += SubtitleStyle.Render("Or enter a custom model name:") + "\n" +
-			"Model: " + m.modelRetryInput.View() + "\n\n" +
+	if m.showCustomProviderInput {
+		content += SubtitleStyle.Render("Or enter a custom provider ID:") + "\n" +
+			"Provider: " + m.providerRetryInput.View() + "\n\n" +
 			MutedStyle.Render("(press Enter to submit, Esc to cancel)") + "\n\n"
 	} else {
-		content += HelpStyle.Render("↑/k: Up • ↓/j: Down • Enter: Select • c: Custom Model • Esc: Back")
+		content += HelpStyle.Render("↑/k: Up • ↓/j: Down • Enter: Select • c: Custom Provider • Esc: Back")
 	}
 
 	box := FocusedBoxStyle.Width(80).Render(content)
@@ -1051,58 +1091,46 @@ func (m *GenerateFlowModel) viewModelRetryStep() string {
 	)
 }
 
-func (m *GenerateFlowModel) renderModelGrid() string {
-	// Create a table showing models with their details
+func (m *GenerateFlowModel) renderProviderGrid() string {
+	// Create a table showing providers with their details
 	rows := []string{}
 
 	// Add column headers
 	headerRow := fmt.Sprintf(
-		"%-4s | %-20s | %-8s | %-10s | %s",
-		"  #", "Model", "Price", "Auth", "Description",
+		"%-4s | %-25s | %-12s | %-10s | %s",
+		"  #", "Provider", "Price", "Auth", "API",
 	)
 	rows = append(rows, HeaderStyle.Render(headerRow))
 	rows = append(rows, strings.Repeat("─", 80))
 
-	// Add model rows
-	cfg, _ := config.LoadConfig()
-	for i, model := range m.retryModels {
-		// Determine if auth is available
-		api, _ := generate.DetectAPIFromModel(model.name)
+	// Add provider rows
+	for i, provider := range m.retryProviders {
+		// Auth status
 		authStatus := "✗"
-		switch api {
-		case "gemini":
-			if cfg.GeminiAPIKey != "" {
-				authStatus = "✓"
-			}
-		case "vertex":
-			if cfg.VertexAPIKey != "" {
-				authStatus = "✓"
-			}
-		case "bedrock":
-			if cfg.AWSAccessKeyID != "" && cfg.AWSSecretAccessKey != "" {
-				authStatus = "✓"
-			}
+		if provider.configured {
+			authStatus = "✓"
 		}
 
 		// Mark selected row
 		prefix := "  "
-		if i == m.selectedRetryModel && !m.showCustomModelInput {
+		if i == m.selectedRetryProvider && !m.showCustomProviderInput {
 			prefix = "→ "
 		}
 
-		desc := model.description
-		if len(desc) > 35 {
-			desc = desc[:32] + "..."
+		// Format provider info
+		displayName := provider.name
+		if len(displayName) > 25 {
+			displayName = displayName[:22] + "..."
 		}
 
 		rowStr := fmt.Sprintf(
-			"%s%d | %-20s | %-8s | %-10s | %s",
+			"%s%d | %-25s | %-12s | %-10s | %s",
 			prefix,
 			i+1,
-			truncateString(model.displayName, 20),
-			model.cost,
+			displayName,
+			provider.cost,
 			authStatus,
-			desc,
+			provider.api,
 		)
 
 		rows = append(rows, rowStr)
@@ -1113,15 +1141,18 @@ func (m *GenerateFlowModel) renderModelGrid() string {
 
 // Helper function to resolve custom model names
 func resolveCustomModelName(input string) (string, error) {
-	// Try exact match first
-	if info, err := generate.GetModelInfo(input); err == nil {
-		return info.Name, nil
+	registry := generate.GetProviderRegistry()
+
+	// Try to resolve as provider ID or alias
+	provider, err := registry.ResolveProvider(input)
+	if err == nil {
+		return provider.ModelID, nil
 	}
 
 	// Try alias resolution
 	if resolvedName := generate.ResolveModelName(input); resolvedName != input {
-		if info, err := generate.GetModelInfo(resolvedName); err == nil {
-			return info.Name, nil
+		if provider, err := registry.ResolveProvider(resolvedName); err == nil {
+			return provider.ModelID, nil
 		}
 	}
 
@@ -1189,37 +1220,42 @@ func (m *GenerateFlowModel) generateImageCmd() tea.Cmd {
 			size = m.sizes[m.selectedSize].size
 		}
 
-		// Build options
-		modelName := m.models[m.selectedModel].name
-		logger.LogDebug("TUI: Selected model index=%d, name=%q, displayName=%q",
-			m.selectedModel, modelName, m.models[m.selectedModel].displayName)
+		// Get selected provider
+		provider := m.providers[m.selectedProvider]
+		logger.LogDebug("TUI: Selected provider index=%d, id=%q, name=%q",
+			m.selectedProvider, provider.id, provider.name)
 
+		// Build options
 		options := models.GenerateOptions{
-			Model:          modelName,
+			Model:          provider.model,
 			Size:           size,
 			Style:          m.styles[m.selectedStyle].value,
 			NegativePrompt: "", // Could add in future
 		}
 
-		logger.LogDebug("TUI: Options built - Model=%q, Size=%q, Style=%q",
-			options.Model, options.Size, options.Style)
+		logger.LogDebug("TUI: Options built - Provider=%q, Model=%q, Size=%q, Style=%q",
+			provider.id, options.Model, options.Size, options.Style)
 
 		// Save error context for potential retry
 		m.errorContext.prompt = m.promptTextarea.Value()
-		m.errorContext.model = m.models[m.selectedModel].displayName
+		m.errorContext.model = provider.name
 		m.errorContext.size = size
 		m.errorContext.style = m.styles[m.selectedStyle].label
 		m.errorContext.output = m.outputInput.Value()
 
 		// Build equivalent CLI command for logging and reproducibility
-		cliCommand := m.buildCLICommand(m.promptTextarea.Value(), options.Model, size, options.Style, m.outputInput.Value())
+		cliCommand := fmt.Sprintf("gimage generate \"%s\" --provider %s --size %s",
+			strings.ReplaceAll(m.promptTextarea.Value(), "\"", "\\\""), provider.id, size)
+		if options.Style != "" {
+			cliCommand += fmt.Sprintf(" --style %s", options.Style)
+		}
+		cliCommand += fmt.Sprintf(" --output %s", m.outputInput.Value())
 
 		// Log generation start
-		api, _ := generate.DetectAPIFromModel(options.Model)
 		logger.LogGenerateStart(
 			m.promptTextarea.Value(),
-			options.Model,
-			api,
+			provider.model,
+			provider.api,
 			size,
 			options.Style,
 			m.outputInput.Value(),
@@ -1232,11 +1268,21 @@ func (m *GenerateFlowModel) generateImageCmd() tea.Cmd {
 			// Note: In real implementation, we'd have proper progress channels
 		}()
 
-		// Use the registry to handle all the complexity
+		// Use the provider system to generate
 		ctx := context.Background()
-		logger.LogDebug("TUI: Using registry to generate with model: %q", options.Model)
+		logger.LogDebug("TUI: Using provider %q to generate", provider.id)
 
-		result, err := generate.GenerateWithRegistry(ctx, options.Model, m.promptTextarea.Value(), options)
+		// Create client using the provider
+		client, err := m.providerRegistry.CreateClient(provider.id)
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to create client: %v", err)
+			logger.LogError("%s", errMsg)
+			return generationCompleteMsg{err: fmt.Errorf("%s", errMsg)}
+		}
+		defer client.Close()
+
+		// Generate the image
+		result, err := client.GenerateImage(ctx, m.promptTextarea.Value(), options)
 		if err != nil {
 			errMsg := fmt.Sprintf("Generation failed: %v", err)
 			logger.LogError("%s", errMsg)
