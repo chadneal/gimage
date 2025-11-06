@@ -3,9 +3,9 @@
 # Binary name
 BINARY_NAME=gimage
 
-# Version: 1.1.[build_number] where build_number is the git commit count
+# Version: 1.2.[build_number] where build_number is the git commit count
 BUILD_NUMBER=$(shell git rev-list --count HEAD 2>/dev/null || echo "0")
-VERSION?=1.1.$(BUILD_NUMBER)
+VERSION?=1.2.$(BUILD_NUMBER)
 
 BUILD_DIR=bin
 
