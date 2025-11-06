@@ -29,8 +29,7 @@ var rootCmd = &cobra.Command{
 FEATURES:
   • Generate images from text using Google Gemini 2.5 Flash Image or Vertex AI Imagen 4
   • Process images: resize, scale, crop, compress (PNG, JPG, WebP, GIF, TIFF, BMP)
-  • Batch processing with concurrent operations
-  • MCP server for Claude integration
+  • MCP server for Claude integration with batch operations
   • Pure Go implementation - single binary, no system dependencies
 
 AUTHENTICATION:
@@ -47,10 +46,9 @@ AVAILABLE COMMANDS:
   crop        Crop images to specific regions
   compress    Compress images to reduce file size
   convert     Convert images between formats (PNG, JPG, WebP, GIF, TIFF, BMP)
-  batch       Process multiple images concurrently
   auth        Configure API credentials
-  config      Manage configuration
-  serve       Start MCP server for Claude integration
+  serve       Start MCP server for Claude integration (includes batch operations)
+  tui         Launch interactive terminal UI
 
 EXAMPLES:
 
@@ -118,34 +116,35 @@ EXAMPLES:
   18. Crop and save:
       $ gimage crop image.png 0 0 1920 1080 --output cropped.png
 
-  Batch Processing:
-  ────────────────
-  19. Batch resize all images in directory:
-      $ gimage batch resize ./photos --width 800 --height 600 --output ./resized
+  MCP Server (for batch operations via Claude):
+  ──────────────────────────────────────────────
+  19. Start MCP server:
+      $ gimage serve
 
-  20. Batch compress with 8 workers:
-      $ gimage batch compress ./images --quality 80 --workers 8 --output ./compressed
-
-  21. Batch convert all images to WebP:
-      $ gimage batch convert ./photos webp --output ./webp-images
+  20. Batch operations available via MCP tools:
+      - batch_resize, batch_compress, batch_convert
+      See: https://github.com/apresai/gimage/blob/main/docs/MCP_TOOLS.md
 
   Advanced Usage:
   ──────────────
-  22. Generate large 2K image with Vertex AI:
+  21. Generate large 2K image with Vertex AI:
       $ gimage generate "detailed landscape" --model imagen-4 --size 2048x2048 --project my-project
 
-  23. Chain operations (generate, then resize):
+  22. Chain operations (generate, then resize):
       $ gimage generate "logo design" --output logo.png
       $ gimage resize logo.png 512 512 --output logo-512.png
 
-  24. Verbose mode for debugging:
+  23. Verbose mode for debugging:
       $ gimage generate "test image" --verbose
+
+  24. Launch interactive TUI:
+      $ gimage tui
 
 TIPS:
   • Use --verbose flag for detailed operation logs
   • Use --help on any command for more details (e.g., "gimage generate --help")
   • Default output filenames are auto-generated with timestamps
-  • Batch operations use 4 parallel workers by default (configurable with --workers)
+  • For batch operations, use MCP server with Claude Desktop
   • All image processing uses high-quality Lanczos resampling
   • Config file location: ~/.gimage/config.md
 

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,22 +12,37 @@ import (
 
 // convertCmd represents the convert command
 var convertCmd = &cobra.Command{
-	Use:   "convert [input] [format]",
+	Use:   "convert",
 	Short: "Convert an image to a different format",
 	Long: `Convert an image to a different format (PNG, JPG, WebP, GIF, TIFF, BMP).
 
-Examples:
-  gimage convert input.png jpg
-  gimage convert input.jpg webp --output converted.webp`,
-	Args: cobra.ExactArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		inputPath := args[0]
-		targetFormat := args[1]
+Supported formats:
+  • PNG  - Lossless, transparency support
+  • JPG  - Lossy, best for photos
+  • WebP - Modern format, smaller files
+  • GIF  - Animated images, limited colors
+  • TIFF - High quality, large files
+  • BMP  - Uncompressed, largest files
 
-		// Get output path from flag or generate default
+Examples:
+  gimage convert --input input.png --format jpg
+  gimage convert -i input.jpg -f webp --output converted.webp`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Get flag values
+		inputPath, _ := cmd.Flags().GetString("input")
+		targetFormat, _ := cmd.Flags().GetString("format")
 		outputPath, _ := cmd.Flags().GetString("output")
+
+		// Validate required flags
+		if inputPath == "" {
+			return fmt.Errorf("--input flag is required")
+		}
+		if targetFormat == "" {
+			return fmt.Errorf("--format flag is required")
+		}
+
+		// Generate output path if not provided
 		if outputPath == "" {
-			// Generate output path: input_converted.format
 			ext := filepath.Ext(inputPath)
 			base := inputPath[:len(inputPath)-len(ext)]
 			outputPath = fmt.Sprintf("%s_converted.%s", base, targetFormat)
@@ -40,7 +54,10 @@ Examples:
 		}
 
 		// Convert the image
-		fmt.Printf("Converting %s to %s format...\n", inputPath, targetFormat)
+		printInfo("Converting %s to %s format...", inputPath, targetFormat)
+		printVerbose("Input: %s", inputPath)
+		printVerbose("Output: %s", outputPath)
+		printVerbose("Target format: %s", targetFormat)
 		err := imaging.ConvertImageFile(context.Background(), inputPath, outputPath)
 		if err != nil {
 			return fmt.Errorf("conversion failed: %w", err)
@@ -52,9 +69,9 @@ Examples:
 			return fmt.Errorf("failed to stat output file: %w", err)
 		}
 
-		fmt.Printf("✓ Converted successfully!\n")
-		fmt.Printf("  Output: %s\n", outputPath)
-		fmt.Printf("  Size: %d bytes\n", info.Size())
+		printSuccess("Converted successfully!")
+		printInfo("Output: %s", outputPath)
+		printInfo("Size: %d bytes", info.Size())
 
 		return nil
 	},
@@ -64,5 +81,10 @@ func init() {
 	rootCmd.AddCommand(convertCmd)
 
 	// Flags for convert command
-	convertCmd.Flags().StringP("output", "o", "", "output file path")
+	convertCmd.Flags().StringP("input", "i", "", "input image file path (required)")
+	convertCmd.Flags().StringP("format", "f", "", "target format: png, jpg, webp, gif, tiff, bmp (required)")
+	convertCmd.Flags().StringP("output", "o", "", "output file path (default: input_converted.FORMAT)")
+
+	convertCmd.MarkFlagRequired("input")
+	convertCmd.MarkFlagRequired("format")
 }

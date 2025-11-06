@@ -9,7 +9,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 **Core Capabilities**:
 - Generate images using Google Gemini 2.5 Flash, Vertex AI Imagen 4, or AWS Bedrock Nova Canvas
 - Process images: resize, scale, crop, compress, convert (PNG, JPG, WebP, GIF, TIFF, BMP)
-- Batch processing with concurrent operations
+- Batch processing via MCP server (batch_resize, batch_compress, batch_convert)
 - MCP server for Claude Desktop integration
 - AWS Lambda API deployment
 
@@ -126,6 +126,86 @@ Map informal names to exact model IDs:
 5. Create unit tests with fixtures from `test/fixtures/` (DO NOT MODIFY)
 6. Benchmark critical operations
 
+## CLI Standards
+
+### Command Interface Pattern
+
+**Image processing commands use explicit flags**:
+- Consistent, explicit, self-documenting
+- Composable with shell scripts
+- Clear in logs and command history
+
+**Generation command supports both positional and flag-based prompts**:
+```bash
+# Positional prompt (most common, recommended for quick use)
+gimage generate "sunset over mountains"
+
+# Flag-based prompt (explicit, useful in scripts)
+gimage generate --prompt "sunset over mountains"
+```
+
+**Standard Flags**:
+- `--input, -i`: Input file path (required for most image processing commands)
+- `--output, -o`: Output file path (optional, auto-generated if omitted)
+- `--verbose, -v`: Enable verbose output (available on all commands)
+
+**Examples**:
+```bash
+# Image processing commands (flags-only)
+gimage resize --input photo.jpg --width 800 --height 600 --output resized.jpg
+gimage crop --input photo.jpg --x 100 --y 100 --width 400 --height 300
+gimage scale --input photo.jpg --factor 0.5
+gimage convert --input photo.jpg --format webp
+gimage compress --input photo.jpg --quality 85
+
+# Generation command (supports both styles)
+gimage generate "sunset over mountains" --size 1024x1024
+gimage generate --prompt "sunset over mountains" --output sunset.png
+
+# Auth commands (positional provider argument)
+gimage auth status
+gimage auth setup gemini
+gimage auth list
+gimage auth test gemini
+```
+
+**Available CLI Commands**:
+- `generate` - Generate images from text prompts
+- `resize` - Resize images to specific dimensions
+- `scale` - Scale images by a factor
+- `crop` - Crop images to specific regions
+- `compress` - Compress images to reduce file size (JPG, WebP)
+- `convert` - Convert images between formats
+- `auth` - Configure and manage API credentials
+- `serve` - Start MCP server (includes batch operations)
+- `tui` - Launch interactive terminal UI
+
+**Removed Commands** (no longer available):
+- `batch` - Use MCP server tools instead (batch_resize, batch_compress, batch_convert)
+- `config` - Use `auth` commands for configuration
+
+### Verbose Logging
+
+All commands support `--verbose` flag for detailed output:
+```bash
+gimage resize --input photo.jpg --width 800 --height 600 --verbose
+# Outputs:
+# ℹ Resizing photo.jpg to 800x600...
+# • Input: photo.jpg
+# • Output: photo_resized_800x600.jpg
+# • Dimensions: 800x600
+# ✓ Resized successfully!
+```
+
+### Output Path Generation
+
+If `--output` is omitted, commands auto-generate descriptive output paths:
+- `resize`: `input_resized_WxH.ext`
+- `crop`: `input_cropped_WxH.ext`
+- `scale`: `input_scaled_FACTORx.ext`
+- `convert`: `input_converted.FORMAT`
+- `compress`: `input_compressed.ext`
+
 ### Testing Strategy
 
 **Unit Tests (>80% coverage required)**:
@@ -145,52 +225,121 @@ Map informal names to exact model IDs:
 ### MCP Server
 
 MCP server runs via `gimage serve` and exposes 10 tools for AI assistants:
-- `generate_image`, `resize_image`, `scale_image`, `crop_image`, `compress_image`
-- `convert_image`, `batch_resize`, `batch_compress`, `batch_convert`, `list_models`
+- **Single operations**: `generate_image`, `resize_image`, `scale_image`, `crop_image`, `compress_image`, `convert_image`
+- **Batch operations**: `batch_resize`, `batch_compress`, `batch_convert` (concurrent processing)
+- **Utilities**: `list_models`
+
+**Important**: Batch operations are ONLY available through MCP server, not CLI.
+- CLI users should wrap `gimage` in shell scripts for batch processing
+- MCP server provides optimized concurrent batch operations for AI assistants
 
 Config: `~/.gimage/config.md` (markdown format using `**key**: value`)
 
 ## Authentication
 
-Interactive commands create/update config:
+### Auth Commands
+
+Modern auth command structure:
 
 ```bash
-gimage auth gemini    # Gemini API key
-gimage auth vertex    # Vertex AI (3 modes: Express, Service Account, ADC)
-gimage auth bedrock   # AWS Bedrock (2 modes: REST with keys, SDK with credential chain)
+gimage auth status    # Show authentication status for all providers
+gimage auth list      # List all configured providers with sources
+gimage auth test      # Test credentials by making real API calls
+gimage auth setup     # Interactive setup wizard for providers
 ```
 
-Config file format (`~/.gimage/config.md`):
+### Authentication Precedence (Highest to Lowest)
+
+**All Providers**:
+1. Command-line flags (e.g., `--gemini-api-key`)
+2. Environment variables
+3. Config file (`~/.gimage/config.md`)
+4. Default values
+
+**Gemini API**:
+- Single credential: `GEMINI_API_KEY`
+- Simple REST client with API key
+
+**Vertex AI** (3 authentication modes):
+1. **Express Mode (REST)**: `VERTEX_API_KEY` → Fast, simple, REST-based
+2. **Service Account**: `GOOGLE_APPLICATION_CREDENTIALS` → JSON key file path
+3. **Application Default Credentials (ADC)**: Automatic → gcloud SDK, workload identity
+
+**AWS Bedrock** (4 authentication modes):
+1. **REST with Bearer Token**: `AWS_BEARER_TOKEN_BEDROCK` → Direct REST API
+2. **SDK with Access Keys**: `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` → AWS SDK
+3. **SDK with Profile**: `AWS_PROFILE` → Named profile from `~/.aws/credentials`
+4. **SDK with IAM Role**: Automatic → EC2, Lambda, ECS task roles
+
+**Why Both REST and SDK?**
+- REST: Simple API keys, quick setup, perfect for local development
+- SDK: IAM roles, profiles, workload identity - critical for Lambda/EC2/GCP deployments
+
+### Config File Format
+
+Location: `~/.gimage/config.md` (markdown format, 0600 permissions)
+
 ```markdown
+# Gimage Configuration
+
+⚠️  SECURITY WARNING ⚠️
+This file contains SENSITIVE API KEYS stored in PLAINTEXT.
+
 **gemini_api_key**: AIzaSy...
 **vertex_api_key**: AIzaSy...
 **vertex_project**: your-project-id
 **vertex_location**: us-central1
+**vertex_credentials_path**: /path/to/service-account.json
 **aws_access_key_id**: AKIA...
 **aws_secret_access_key**: wJalr...
 **aws_region**: us-east-1
+**aws_profile**: default
+**aws_bedrock_api_key**: bearer-token-here
 **default_api**: gemini
 **default_model**: gemini-2.5-flash-image
+**log_level**: info
 ```
 
 ## Security & Best Practices
+
+### Credential Security
+
+**Config File Security**:
+- Config file (`~/.gimage/config.md`) stores API keys in **PLAINTEXT**
+- File created with 0600 permissions (only owner can read/write)
+- Includes prominent security warnings at the top
+- **NEVER commit config file to version control**
+- **NEVER share config file or its contents**
+
+**Best Practices**:
+- **PREFER environment variables** over config file for sensitive keys
+- Use `gimage auth status` to see where credentials are coming from
+- Rotate API keys regularly (every 90 days recommended)
+- Use separate keys for dev/staging/production environments
+- For CI/CD pipelines, always use environment variables
+- For Lambda/EC2/ECS, prefer IAM roles over static credentials
+
+**Environment Variable Priority**:
+- Environment variables override config file (by design)
+- Set `GEMINI_API_KEY`, `VERTEX_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.
+- Use `gimage auth status` to check for conflicts
+
+**Warning About Conflicts**:
+- If both config file AND environment variable are set, env var wins
+- `gimage auth status` will warn you about conflicting credentials
+- Clean up unused credentials to avoid confusion
 
 ### Documentation and Dates
 - **ALWAYS use `date +%Y-%m-%d`** command for current date
 - Never hardcode dates in documentation
 - Use dynamic date retrieval for CHANGELOG.md and docs
 
-### Credentials
-- Never log API keys
-- Config file created with 0600 permissions
-- Use `gimage auth` commands instead of manual editing
-- Use environment variables for CI/CD
-
 ### Code Quality
 - Follow Go idioms and conventions
 - Keep functions small and focused
 - Use golangci-lint
 - Document all public APIs with godoc
+- Never log API keys or sensitive data
 
 ## Common Patterns
 

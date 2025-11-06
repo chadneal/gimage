@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/apresai/gimage/internal/imaging"
 	"github.com/spf13/cobra"
@@ -13,29 +12,32 @@ import (
 
 // resizeCmd represents the resize command
 var resizeCmd = &cobra.Command{
-	Use:   "resize [input] [width] [height]",
+	Use:   "resize",
 	Short: "Resize an image to specific dimensions",
 	Long: `Resize an image to specific dimensions using high-quality Lanczos resampling.
 
 Examples:
-  gimage resize input.jpg 800 600
-  gimage resize input.png 1920 1080 --output resized.png`,
-	Args: cobra.ExactArgs(3),
+  gimage resize --input input.jpg --width 800 --height 600
+  gimage resize -i input.png -w 1920 -h 1080 --output resized.png`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		inputPath := args[0]
-
-		// Parse width and height
-		width, err := strconv.Atoi(args[1])
-		if err != nil {
-			return fmt.Errorf("invalid width '%s': must be a positive integer", args[1])
-		}
-		height, err := strconv.Atoi(args[2])
-		if err != nil {
-			return fmt.Errorf("invalid height '%s': must be a positive integer", args[2])
-		}
-
-		// Get output path from flag or generate default
+		// Get flag values
+		inputPath, _ := cmd.Flags().GetString("input")
+		width, _ := cmd.Flags().GetInt("width")
+		height, _ := cmd.Flags().GetInt("height")
 		outputPath, _ := cmd.Flags().GetString("output")
+
+		// Validate required flags
+		if inputPath == "" {
+			return fmt.Errorf("--input flag is required")
+		}
+		if width <= 0 {
+			return fmt.Errorf("--width must be a positive integer")
+		}
+		if height <= 0 {
+			return fmt.Errorf("--height must be a positive integer")
+		}
+
+		// Get output path or generate default
 		if outputPath == "" {
 			// Generate output path: input_resized_WxH.ext
 			ext := filepath.Ext(inputPath)
@@ -49,9 +51,13 @@ Examples:
 		}
 
 		// Resize the image
-		fmt.Printf("Resizing %s to %dx%d...\n", inputPath, width, height)
+		printInfo("Resizing %s to %dx%d...", inputPath, width, height)
+		printVerbose("Input: %s", inputPath)
+		printVerbose("Output: %s", outputPath)
+		printVerbose("Dimensions: %dx%d", width, height)
+
 		ctx := context.Background()
-		err = imaging.ResizeImage(ctx, inputPath, outputPath, width, height)
+		err := imaging.ResizeImage(ctx, inputPath, outputPath, width, height)
 		if err != nil {
 			return fmt.Errorf("resize failed: %w", err)
 		}
@@ -62,9 +68,9 @@ Examples:
 			return fmt.Errorf("failed to stat output file: %w", err)
 		}
 
-		fmt.Printf("✓ Resized successfully!\n")
-		fmt.Printf("  Output: %s\n", outputPath)
-		fmt.Printf("  Size: %d bytes\n", info.Size())
+		printSuccess("Resized successfully!")
+		printInfo("Output: %s", outputPath)
+		printInfo("Size: %d bytes", info.Size())
 
 		return nil
 	},
@@ -74,5 +80,12 @@ func init() {
 	rootCmd.AddCommand(resizeCmd)
 
 	// Flags for resize command
-	resizeCmd.Flags().StringP("output", "o", "", "output file path")
+	resizeCmd.Flags().StringP("input", "i", "", "input image file path (required)")
+	resizeCmd.Flags().Int("width", 0, "target width in pixels (required)")
+	resizeCmd.Flags().Int("height", 0, "target height in pixels (required)")
+	resizeCmd.Flags().StringP("output", "o", "", "output file path (default: input_resized_WxH.ext)")
+
+	resizeCmd.MarkFlagRequired("input")
+	resizeCmd.MarkFlagRequired("width")
+	resizeCmd.MarkFlagRequired("height")
 }

@@ -13,8 +13,7 @@ var tuiCmd = &cobra.Command{
 
 The TUI provides a menu-driven interface for:
   - Generating images from text prompts
-  - Processing images (resize, crop, compress, convert)
-  - Batch operations on multiple images
+  - Processing images (resize, scale, crop, compress, convert)
   - Configuring API keys and settings
 
 Examples:

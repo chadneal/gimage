@@ -22,11 +22,23 @@ Download from [GitHub Releases](https://github.com/apresai/gimage/releases)
 
 ### 2. Configure API credentials
 
-Before using the MCP server, you need to set up authentication for AI image generation:
+Before using the MCP server, you need to set up authentication for AI image generation.
 
+**Recommended: Use environment variables** for better security:
 ```bash
-# Setup Gemini API (recommended - free tier available)
-gimage auth gemini
+export GEMINI_API_KEY="your-api-key-here"
+```
+
+**Alternative: Interactive setup**:
+```bash
+# Check current authentication status
+gimage auth status
+
+# Interactive setup wizard
+gimage auth setup
+
+# Test your credentials
+gimage auth test
 ```
 
 **Get your free API key**: https://aistudio.google.com/app/apikey
@@ -36,10 +48,11 @@ The Gemini free tier includes:
 - All Gemini models
 - No credit card required
 
-**Alternative: Vertex AI** (for advanced users)
-```bash
-gimage auth vertex
-```
+**For advanced users**:
+- **Vertex AI**: 3 authentication modes (Express/Service Account/ADC)
+- **AWS Bedrock**: 4 authentication modes (Bearer Token/Access Keys/Profile/IAM Role)
+
+See [Authentication Guide](../README.md#configuration) for complete details.
 
 ### 3. Add to Claude Desktop
 
@@ -280,24 +293,39 @@ Use 1024x1024 size for all"
 
 **Solutions**:
 
-1. **Verify API key is configured**
+1. **Check authentication status**
    ```bash
-   gimage auth gemini
+   gimage auth status
    ```
-   Follow the prompts to enter your API key.
+   This shows which credentials are configured and their sources.
 
-2. **Test generation manually**
+2. **Verify API key is configured**
+   ```bash
+   # Use interactive setup
+   gimage auth setup
+
+   # OR set environment variable (recommended)
+   export GEMINI_API_KEY="your-api-key-here"
+   ```
+
+3. **Test credentials**
+   ```bash
+   gimage auth test
+   ```
+   This makes real API calls to verify your credentials work.
+
+4. **Test generation manually**
    ```bash
    gimage generate "test image"
    ```
    If this works, MCP server should work too.
 
-3. **Check API key validity**
+5. **Check API key validity**
    - Ensure key hasn't expired
    - Verify it's correctly copied (no extra spaces)
    - Get a new key if needed: https://aistudio.google.com/app/apikey
 
-4. **Verify internet connection**
+6. **Verify internet connection**
    - Gemini API requires internet access
    - Check firewall settings
 

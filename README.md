@@ -2,13 +2,16 @@
 
 **Gimage** is a powerful tool for generating AI images and processing them with ease. Built with pure Go for maximum portability.
 
-## 🚀 Two Ways to Use Gimage
+## 🚀 Three Ways to Use Gimage
 
 ### 1. Command-Line Tool (CLI)
-A single binary with zero dependencies for local image operations.
+A single binary with zero dependencies for local image operations on your computer.
 
-### 2. Cloud API (AWS Lambda)
-Production-ready serverless API for web applications and remote processing.
+### 2. MCP Server for AI Assistants
+Run as an MCP (Model Context Protocol) server for seamless integration with Claude Desktop and other AI assistants.
+
+### 3. Cloud API (AWS Lambda)
+Production-ready serverless REST API for web applications and remote processing.
 
 ## What Can You Do with Gimage?
 
@@ -25,10 +28,10 @@ Production-ready serverless API for web applications and remote processing.
 - **Compress** - Reduce file size while maintaining quality
 - **Convert** - Transform between formats (PNG, JPG, WebP, GIF, TIFF, BMP)
 
-### ⚡ Batch Processing
-- Process multiple images concurrently
-- Configurable worker pool for optimal performance
-- Apply any operation to entire directories
+### ⚡ Batch Processing (MCP Server Only)
+- Process multiple images concurrently via MCP server
+- Optimized for AI assistants (Claude Desktop)
+- CLI users: use shell scripts or `find` + `xargs`
 
 ### 🔌 Integration Options
 - **Claude Desktop**: Run as MCP server
@@ -75,28 +78,35 @@ sudo mv gimage /usr/local/bin/
 
 ### 2. Setup Authentication
 
-#### For Gemini API (Simplest)
-```bash
-gimage auth gemini
-```
-Get your API key from: https://aistudio.google.com/app/apikey
+**Quick Start** (recommended for most users):
 
-#### For Vertex AI (3 Options)
 ```bash
-gimage auth vertex
-```
-Choose from:
-1. **Express Mode** - Simple API key (best for development)
-2. **Service Account** - JSON credentials (best for production)
-3. **Application Default Credentials** - Use your gcloud login
+# Get a free Gemini API key from https://aistudio.google.com/app/apikey
+# Then run the interactive setup:
+gimage auth setup gemini
 
-#### For AWS Bedrock (2 Options)
-```bash
-gimage auth bedrock
+# Or use environment variable (more secure):
+export GEMINI_API_KEY="your-api-key-here"
+gimage generate "test sunset"
 ```
-Choose from:
-1. **REST Mode** - AWS access keys (explicit credentials)
-2. **SDK Mode** - AWS credential chain (supports IAM roles)
+
+**Check your configuration:**
+
+```bash
+# Check current authentication status
+gimage auth status
+
+# List all configured providers with pricing
+gimage auth list
+
+# Test your credentials
+gimage auth test gemini
+```
+
+**Get API Keys:**
+- **Gemini API**: https://aistudio.google.com/app/apikey (FREE tier: 1500 requests/day, no credit card)
+- **Vertex AI**: https://cloud.google.com/vertex-ai (3 auth modes: Express Mode/Service Account/Application Default Credentials)
+- **AWS Bedrock**: https://console.aws.amazon.com/bedrock (4 auth modes: Bearer Token/Access Keys/Profile/IAM Role)
 
 ### 3. Generate Your First Image
 
@@ -111,16 +121,16 @@ That's it! Your image will be saved as `generated_<timestamp>.png`
 ### Image Generation
 
 ```bash
-# Basic generation
+# Basic generation (positional prompt - most common)
 gimage generate "futuristic city at night"
 
 # Specify size and style
 gimage generate "abstract art" --size 1024x1024 --style photorealistic
 
-# Use Vertex AI Imagen (auto-detects vertex API)
+# Use Vertex AI Imagen 4 (auto-detects vertex API)
 gimage generate "beautiful landscape" --model imagen-4
 
-# Use AWS Bedrock Nova Canvas with premium quality (auto-detects bedrock API)
+# Use AWS Bedrock Nova Canvas with premium quality
 gimage generate "futuristic robot" --model nova-canvas --quality premium
 
 # Use negative prompts to avoid unwanted elements
@@ -132,102 +142,185 @@ gimage generate "random pattern" --seed 12345
 # Control creativity with CFG scale (Nova Canvas)
 gimage generate "abstract art" --model nova-canvas --cfg-scale 10
 
-# List all available models
+# List all available models with pricing
 gimage generate --list-models
+
+# Or use explicit --prompt flag if preferred
+gimage generate --prompt "your prompt here"
 ```
 
 ### Image Processing
 
+All image processing commands use explicit flags for clarity:
+
 ```bash
 # Resize to specific dimensions
-gimage resize photo.jpg 800 600
+gimage resize --input photo.jpg --width 800 --height 600
 
 # Scale to 50% size
-gimage scale photo.jpg 0.5
+gimage scale --input photo.jpg --factor 0.5
 
-# Crop a region (x, y, width, height)
-gimage crop photo.jpg 100 100 800 600
+# Crop a region
+gimage crop --input photo.jpg --x 100 --y 100 --width 800 --height 600
 
-# Compress with custom quality
-gimage compress photo.jpg --quality 85
+# Compress with custom quality (supports JPG and WebP)
+gimage compress --input photo.jpg --quality 85
 
 # Convert format
-gimage convert photo.png jpg
+gimage convert --input photo.png --format jpg
+
+# Use --output to specify custom output path
+gimage resize --input photo.jpg --width 800 --height 600 --output resized.jpg
+
+# Add --verbose for detailed progress
+gimage convert --input photo.png --format webp --verbose
 ```
 
 ### Batch Processing
 
-```bash
-# Resize all images in a directory
-gimage batch resize photos/ --width 800 --height 600 --output resized/
+**Batch operations are available only through the MCP server** for use with AI assistants like Claude.
 
-# Compress all images
-gimage batch compress photos/ --quality 85 --output compressed/
+For CLI users who need batch processing:
+- Use shell scripts with loops
+- Use `find` + `xargs` for parallel processing
+- Example: `find photos/ -name "*.jpg" | xargs -P 4 -I {} gimage resize --input {} --width 800 --height 600`
 
-# Convert all to WebP
-gimage batch convert photos/ webp --output webp/
+MCP server batch tools (for AI assistants):
+- `batch_resize` - Concurrent image resizing
+- `batch_compress` - Concurrent compression
+- `batch_convert` - Concurrent format conversion
 
-# Use 8 parallel workers for faster processing
-gimage batch resize photos/ --width 1920 --height 1080 --workers 8
-```
+See [MCP documentation](#mcp-server-for-ai-assistants) for details.
 
 ## Configuration
 
-Gimage stores settings in `~/.gimage/config.md` (created automatically by `gimage auth` commands).
+### Authentication Priority (Highest to Lowest)
+1. **Command-line flags** (highest priority)
+2. **Environment variables** (`GEMINI_API_KEY`, `VERTEX_API_KEY`, etc.)
+3. **Config file** (`~/.gimage/config.md`)
+4. **Default values** (lowest priority)
 
-### Config File Format
+**Recommended**: Use environment variables for sensitive keys. Config file stores keys in **plaintext**.
 
+### Config File
+
+Location: `~/.gimage/config.md` (created automatically by `gimage auth` commands)
+
+**Security Notes**:
+- File permissions: 0600 (only you can read/write)
+- Contains PLAINTEXT API keys
+- **NEVER commit to version control**
+- **PREFER environment variables** over config file
+- Use `gimage auth status` to check for conflicting credentials
+
+Format (markdown with `**key**: value`):
 ```markdown
 # Gimage Configuration
+
+⚠️  SECURITY WARNING ⚠️
+This file contains SENSITIVE API KEYS stored in PLAINTEXT.
 
 **gemini_api_key**: your-gemini-key
 **vertex_api_key**: your-vertex-key
 **vertex_project**: your-gcp-project
 **vertex_location**: us-central1
+**vertex_credentials_path**: /path/to/service-account.json
 **aws_access_key_id**: AKIA...
 **aws_secret_access_key**: wJalr...
 **aws_region**: us-east-1
+**aws_profile**: default
+**aws_bedrock_api_key**: bearer-token
 **default_api**: gemini
 **default_model**: gemini-2.5-flash-image
 **default_size**: 1024x1024
 **log_level**: info
 ```
 
-### Priority Order
-1. **Command-line flags** (highest)
-2. **Environment variables** (`GEMINI_API_KEY`, `VERTEX_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.)
-3. **Config file** (`~/.gimage/config.md`)
-4. **Default values** (lowest)
+### Environment Variables (Recommended)
 
-### Environment Variables
-
+**Gemini API**:
 ```bash
-export GEMINI_API_KEY="your-key"           # Gemini API key
-export VERTEX_API_KEY="your-key"           # Vertex AI Express Mode key
-export VERTEX_PROJECT="your-project"       # Vertex AI project ID
-export VERTEX_LOCATION="us-central1"       # Vertex AI location
-export GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account.json"
-export AWS_ACCESS_KEY_ID="AKIA..."        # AWS Bedrock access key
-export AWS_SECRET_ACCESS_KEY="wJalr..."   # AWS Bedrock secret key
-export AWS_REGION="us-east-1"              # AWS region
+export GEMINI_API_KEY="your-key"
+```
+
+**Vertex AI** (3 authentication modes):
+```bash
+# Option 1: Express Mode (REST) - Simplest
+export VERTEX_API_KEY="your-key"
+export VERTEX_PROJECT="your-project-id"
+export VERTEX_LOCATION="us-central1"
+
+# Option 2: Service Account - Production
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+export VERTEX_PROJECT="your-project-id"
+
+# Option 3: Application Default Credentials - gcloud SDK
+# No env vars needed - uses gcloud auth
+```
+
+**AWS Bedrock** (4 authentication modes):
+```bash
+# Option 1: REST API with Bearer Token
+export AWS_BEARER_TOKEN_BEDROCK="your-bearer-token"
+export AWS_REGION="us-east-1"
+
+# Option 2: SDK with Access Keys (supports both long-term and short-term credentials)
+export AWS_ACCESS_KEY_ID="AKIA..."           # Long-term access key ID
+export AWS_SECRET_ACCESS_KEY="wJalr..."     # Long-term secret access key
+export AWS_SESSION_TOKEN="FwoGZXIvYXd..."   # Optional: for short-term credentials
+export AWS_REGION="us-east-1"
+
+# Option 3: SDK with Named Profile
+export AWS_PROFILE="your-profile-name"
+export AWS_REGION="us-east-1"
+
+# Option 4: SDK with IAM Role (Lambda/EC2/ECS - no credentials needed)
+# Instance/task role automatically provides credentials
+export AWS_REGION="us-east-1"  # Optional, defaults to instance region
+```
+
+**Check credential conflicts**:
+```bash
+gimage auth status  # Shows which credentials are active and their sources
 ```
 
 ## Available Models
 
-### Gemini API (Google AI Studio)
-- `gemini-2.5-flash-image` (default, recommended)
-- `gemini-2.0-flash-preview-image-generation`
+### Gemini API (Google AI Studio) - FREE Tier
+- **`gemini-2.5-flash-image`** (default, recommended)
+  - FREE: 1500 requests/day, no credit card required
+  - Resolution: up to 1024x1024
+  - Fast generation (~2-3 seconds)
+  - Best for: Quick iterations, development, testing
 
-### Vertex AI
-- `imagen-3.0-generate-002` (latest Imagen 3)
-- `imagen-4` (newest, highest quality, up to 2048x2048)
+- **`gemini-2.0-flash-preview-image-generation`**
+  - FREE: 1500 requests/day
+  - Preview model with experimental features
 
-### AWS Bedrock
-- `amazon.nova-canvas-v1:0` (Nova Canvas, up to 1408x1408)
+### Vertex AI (Google Cloud) - Paid
+- **`imagen-3.0-generate-002`** (Imagen 3)
+  - Pricing: ~$0.02-0.04/image
+  - Resolution: up to 1536x1536
+  - High quality, production-ready
+
+- **`imagen-4`** (newest, highest quality)
+  - Pricing: ~$0.04/image
+  - Resolution: up to 2048x2048
+  - Best for: Professional work, final production images
+
+### AWS Bedrock - Paid
+- **`amazon.nova-canvas-v1:0`** (Nova Canvas)
+  - Resolution: up to 1408x1408
   - Standard quality: 50 steps, $0.04/image
   - Premium quality: 100 steps, $0.08/image
+  - Best for: AWS-integrated applications
 
-Run `gimage generate --list-models` to see all available models.
+**View all models with live pricing:**
+```bash
+gimage generate --list-models
+# or
+gimage auth list  # Shows configured providers
+```
 
 ## Image Formats Supported
 
@@ -285,26 +378,21 @@ Gimage can run as an MCP (Model Context Protocol) server, enabling AI assistants
 
 ### Installation Methods
 
-Choose the method that works best for you:
+There are two ways to install gimage for use with Claude Desktop. Choose based on your use case:
 
-#### Method 1: Homebrew + MCP Server (Recommended for macOS/Linux)
+#### Method 1: Homebrew (Recommended - macOS/Linux only)
 
-This is the cleanest approach - install gimage CLI via Homebrew, then use it as an MCP server:
+**Use this if:** You want both CLI access AND MCP server functionality from a single installation.
 
 **Step 1: Install gimage via Homebrew**
 ```bash
-# Install gimage (tap is added automatically)
 brew install apresai/tap/gimage
-
-# Verify installation
-gimage --version
+gimage --version  # Verify installation
 ```
 
-**Step 2: Configure Claude Desktop**
+**Step 2: Configure Claude Desktop MCP**
 
-Edit your configuration file:
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `~/.config/Claude/claude_desktop_config.json` (Linux):
 
 ```json
 {
@@ -317,23 +405,24 @@ Edit your configuration file:
 }
 ```
 
-**Benefits**:
-- Uses the same gimage installation for both CLI and MCP
-- Easy updates with `brew upgrade apresai/tap/gimage`
-- No duplicate binaries
+**Why this method?**
+- ✅ Single installation serves both CLI and MCP
+- ✅ Easy updates: `brew upgrade apresai/tap/gimage`
+- ✅ Directly calls the `gimage` binary in your PATH
+- ✅ Smaller total footprint (one binary)
 
-#### Method 2: npm Package (Alternative - Works on all platforms)
+#### Method 2: npm Package (Cross-platform alternative)
 
-If you prefer npm or don't use Homebrew:
+**Use this if:** You're on Windows, don't use Homebrew, or only want MCP functionality (no CLI needed).
 
-**Step 1: Install the npm package**
+**Step 1: Install via npm**
 ```bash
 npm install -g @apresai/gimage-mcp
 ```
 
-**Step 2: Configure Claude Desktop**
+**Step 2: Configure Claude Desktop MCP**
 
-Edit your configuration file:
+Edit your Claude Desktop config file:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -349,28 +438,38 @@ Edit your configuration file:
 }
 ```
 
-The npm package automatically downloads the correct gimage binary for your platform during installation.
+**Why this method?**
+- ✅ Works on Windows (Homebrew method doesn't)
+- ✅ npm-based workflow (familiar to Node.js users)
+- ✅ `npx` automatically downloads/runs the correct version
+- ⚠️ Note: npm installs gimage ONLY for MCP use (hidden in npm global directory)
+- ⚠️ If you want CLI access too, you'll need to install via Homebrew separately
 
-**Note**: If you install via npm, you'll have a separate gimage binary just for MCP. If you also want the CLI, install via Homebrew.
+**Configuration difference explained:**
+- **Homebrew**: Uses `"command": "gimage"` - directly calls the binary in your PATH
+- **npm**: Uses `"command": "npx"` - npx finds and runs the npm-installed package
 
 ### Setup Authentication
 
 Before using the MCP server, configure your API credentials:
 
 ```bash
-# For Gemini API (simplest, free tier available)
-gimage auth gemini
+# Quick start with Gemini (FREE tier)
+gimage auth setup gemini
 
-# OR for Vertex AI
-gimage auth vertex
+# Or use environment variable (more secure):
+export GEMINI_API_KEY="your-api-key-here"
 
-# OR for AWS Bedrock
-gimage auth bedrock
+# Verify configuration
+gimage auth status
+gimage auth test gemini
 ```
 
-The MCP server will automatically use credentials from:
-- `~/.gimage/config.md` (created by auth commands)
-- Environment variables (`GEMINI_API_KEY`, `VERTEX_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.)
+The MCP server automatically uses credentials from:
+1. **Environment variables** - `GEMINI_API_KEY`, `VERTEX_API_KEY`, `AWS_ACCESS_KEY_ID`, etc. (RECOMMENDED for security)
+2. **Config file** - `~/.gimage/config.md` (created by `gimage auth setup` commands)
+
+**Best Practice**: Use environment variables for production - they're more secure than storing credentials in config files.
 
 ### Start Using with Claude
 
@@ -418,7 +517,7 @@ If the MCP server isn't working in Claude Desktop:
 
 3. **Verify API credentials are configured:**
    ```bash
-   gimage auth gemini  # or: gimage auth vertex
+   gimage auth status  # Check all configured credentials
    ```
 
 4. **Test image generation works outside MCP:**
@@ -438,18 +537,7 @@ If the MCP server isn't working in Claude Desktop:
 
 ### Environment Variables
 
-The MCP server respects the same environment variables as the CLI:
-
-```bash
-export GEMINI_API_KEY="your-gemini-key"          # Gemini API
-export VERTEX_API_KEY="your-vertex-key"          # Vertex AI Express Mode
-export VERTEX_PROJECT="your-gcp-project"         # Vertex AI project
-export VERTEX_LOCATION="us-central1"             # Vertex AI location
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
-export AWS_ACCESS_KEY_ID="AKIA..."               # AWS Bedrock
-export AWS_SECRET_ACCESS_KEY="wJalr..."          # AWS Bedrock
-export AWS_REGION="us-east-1"                     # AWS region
-```
+The MCP server respects the same environment variables as the CLI. See [Configuration](#configuration) for complete list of supported variables for all authentication modes (Gemini, Vertex AI, AWS Bedrock).
 
 ### MCP Documentation
 
@@ -464,7 +552,20 @@ For comprehensive guides and examples:
 
 See [COMMANDS.md](COMMANDS.md) for complete command reference and detailed usage examples.
 
-**Quick command list**: `generate`, `resize`, `scale`, `crop`, `compress`, `convert`, `batch`, `auth`, `config`, `serve`
+**Available commands**:
+- `generate` - AI image generation from text prompts
+- `resize` - Resize images to specific dimensions
+- `scale` - Scale images by a factor
+- `crop` - Crop images to specific regions
+- `compress` - Compress images to reduce file size (JPG, WebP)
+- `convert` - Convert images between formats
+- `auth` - Configure and manage API credentials (setup, status, list, test)
+- `serve` - Start MCP server for Claude Desktop (includes batch operations)
+- `tui` - Launch interactive terminal UI
+
+**Removed commands** (use alternatives):
+- `batch` - Use MCP server or shell scripts (see [Batch Processing](#batch-processing))
+- `config` - Use `auth` commands for configuration
 
 Run `gimage [command] --help` for detailed usage of any command.
 

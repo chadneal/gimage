@@ -39,11 +39,6 @@ func NewMainMenuModel() *MainMenuModel {
 				Screen:      ScreenProcess,
 			},
 			{
-				Title:       "Batch Operations",
-				Description: "Process multiple images at once",
-				Screen:      ScreenBatch,
-			},
-			{
 				Title:       "Settings",
 				Description: "Configure API keys and preferences",
 				Screen:      ScreenSettings,

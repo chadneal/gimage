@@ -94,17 +94,23 @@ var generateCmd = &cobra.Command{
 The prompt should describe the image you want to generate. You can optionally
 specify style, size, negative prompts, and other parameters.
 
+You can provide the prompt as a positional argument (recommended for quick use)
+or use the --prompt flag for explicit clarity.
+
 Examples:
   # List all available models
   gimage generate --list-models
 
-  # Generate with default settings (Gemini 2.5 Flash)
+  # Generate with default settings - positional prompt (most common)
   gimage generate "a sunset over mountains"
+
+  # Or use --prompt flag explicitly
+  gimage generate --prompt "a sunset over mountains"
 
   # Generate with specific model (auto-detects API)
   gimage generate "futuristic city" --model imagen-4
 
-  # Generate with AWS Bedrock Nova Canvas (auto-detects bedrock API)
+  # Generate with AWS Bedrock Nova Canvas
   gimage generate "futuristic city" --model nova-canvas
 
   # Generate with specific style and size
@@ -129,9 +135,10 @@ Examples:
 			return nil // Skip validation for list-providers
 		}
 
-		// Require at least one argument (the prompt) if not listing models or providers
-		if len(args) == 0 {
-			return fmt.Errorf("prompt is required (or use --list-models or --list-providers to see available options)")
+		// Require either positional prompt or --prompt flag
+		prompt, _ := cmd.Flags().GetString("prompt")
+		if len(args) == 0 && prompt == "" {
+			return fmt.Errorf("prompt is required (provide as argument or use --prompt flag)\nExamples:\n  gimage generate \"your prompt here\"\n  gimage generate --prompt \"your prompt here\"\n  gimage generate --list-models")
 		}
 
 		// Validate flags
@@ -183,8 +190,13 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		return printAvailableModels()
 	}
 
-	// Join prompt from args
-	prompt := strings.Join(args, " ")
+	// Get prompt - prefer positional argument, fall back to --prompt flag
+	var prompt string
+	if len(args) > 0 {
+		prompt = strings.Join(args, " ")
+	} else {
+		prompt, _ = cmd.Flags().GetString("prompt")
+	}
 
 	printVerbose("Generating image with prompt: %s", prompt)
 
@@ -956,6 +968,7 @@ func printAvailableModels() error {
 }
 
 func init() {
+	generateCmd.Flags().StringP("prompt", "p", "", "Text description of the image to generate (required)")
 	generateCmd.Flags().StringP("output", "o", "", "Output file path (default: generated_<timestamp>.png)")
 	generateCmd.Flags().String("provider", "", "Provider to use (e.g., gemini/flash-2.5, vertex/imagen-4)")
 	generateCmd.Flags().String("api", "", "API to use: gemini or vertex (deprecated, use --provider)")

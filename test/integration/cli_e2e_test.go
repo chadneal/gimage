@@ -74,10 +74,11 @@ func TestCLIResizeE2E(t *testing.T) {
 			outputPath := filepath.Join(tmpDir, fmt.Sprintf("resized_%dx%d.png", tt.width, tt.height))
 
 			// Run CLI command with explicit output
-			cmd := exec.Command(binaryPath, "resize", testImagePath,
-				fmt.Sprintf("%d", tt.width),
-				fmt.Sprintf("%d", tt.height),
-				"-o", outputPath)
+			cmd := exec.Command(binaryPath, "resize",
+				"--input", testImagePath,
+				"--width", fmt.Sprintf("%d", tt.width),
+				"--height", fmt.Sprintf("%d", tt.height),
+				"--output", outputPath)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("CLI command failed: %v\nOutput: %s", err, string(output))
@@ -163,9 +164,10 @@ func TestCLIScaleE2E(t *testing.T) {
 			outputPath := filepath.Join(tmpDir, fmt.Sprintf("scaled_%.2fx.png", tt.factor))
 
 			// Run CLI command with explicit output
-			cmd := exec.Command(binaryPath, "scale", testImagePath,
-				fmt.Sprintf("%.2f", tt.factor),
-				"-o", outputPath)
+			cmd := exec.Command(binaryPath, "scale",
+				"--input", testImagePath,
+				"--factor", fmt.Sprintf("%.2f", tt.factor),
+				"--output", outputPath)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("CLI command failed: %v\nOutput: %s", err, string(output))
@@ -266,12 +268,13 @@ func TestCLICropE2E(t *testing.T) {
 			outputPath := filepath.Join(tmpDir, fmt.Sprintf("cropped_%d_%d_%dx%d.png", tt.x, tt.y, tt.width, tt.height))
 
 			// Run CLI command with explicit output
-			cmd := exec.Command(binaryPath, "crop", testImagePath,
-				fmt.Sprintf("%d", tt.x),
-				fmt.Sprintf("%d", tt.y),
-				fmt.Sprintf("%d", tt.width),
-				fmt.Sprintf("%d", tt.height),
-				"-o", outputPath)
+			cmd := exec.Command(binaryPath, "crop",
+				"--input", testImagePath,
+				"--x", fmt.Sprintf("%d", tt.x),
+				"--y", fmt.Sprintf("%d", tt.y),
+				"--width", fmt.Sprintf("%d", tt.width),
+				"--height", fmt.Sprintf("%d", tt.height),
+				"--output", outputPath)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("CLI command failed: %v\nOutput: %s", err, string(output))
@@ -346,10 +349,13 @@ func TestCLICropCenterE2E(t *testing.T) {
 			y := (tt.imageH - tt.cropH) / 2
 
 			outputPath := filepath.Join(tmpDir, "center_cropped.png")
-			cmd := exec.Command(binaryPath, "crop", testImagePath,
-				fmt.Sprintf("%d", x), fmt.Sprintf("%d", y),
-				fmt.Sprintf("%d", tt.cropW), fmt.Sprintf("%d", tt.cropH),
-				"-o", outputPath)
+			cmd := exec.Command(binaryPath, "crop",
+				"--input", testImagePath,
+				"--x", fmt.Sprintf("%d", x),
+				"--y", fmt.Sprintf("%d", y),
+				"--width", fmt.Sprintf("%d", tt.cropW),
+				"--height", fmt.Sprintf("%d", tt.cropH),
+				"--output", outputPath)
 
 			output, err := cmd.CombinedOutput()
 			if err != nil {
@@ -398,46 +404,52 @@ func TestCLIErrorHandling(t *testing.T) {
 		errorMsg    string
 	}{
 		{
-			name:        "resize with missing width",
-			args:        []string{"resize", testImagePath, "300"},
+			name:        "resize with missing input flag",
+			args:        []string{"resize", "--width", "300", "--height", "300"},
 			expectError: true,
-			errorMsg:    "",
+			errorMsg:    "required flag",
 		},
 		{
-			name:        "resize with invalid dimensions",
-			args:        []string{"resize", testImagePath, "0", "300"},
+			name:        "resize with missing width",
+			args:        []string{"resize", "--input", testImagePath, "--height", "300"},
 			expectError: true,
-			errorMsg:    "",
+			errorMsg:    "required flag",
+		},
+		{
+			name:        "resize with invalid width",
+			args:        []string{"resize", "--input", testImagePath, "--width", "0", "--height", "300"},
+			expectError: true,
+			errorMsg:    "must be a positive",
 		},
 		{
 			name:        "scale with missing factor",
-			args:        []string{"scale", testImagePath},
+			args:        []string{"scale", "--input", testImagePath},
 			expectError: true,
-			errorMsg:    "",
+			errorMsg:    "required flag",
 		},
 		{
 			name:        "scale with invalid factor",
-			args:        []string{"scale", testImagePath, "0"},
+			args:        []string{"scale", "--input", testImagePath, "--factor", "0"},
 			expectError: true,
-			errorMsg:    "",
+			errorMsg:    "must be a positive",
 		},
 		{
-			name:        "crop with missing dimensions",
-			args:        []string{"crop", testImagePath, "0", "0"},
+			name:        "crop with missing width",
+			args:        []string{"crop", "--input", testImagePath, "--x", "0", "--y", "0", "--height", "100"},
 			expectError: true,
-			errorMsg:    "",
+			errorMsg:    "required flag",
 		},
 		{
 			name:        "crop exceeding image bounds",
-			args:        []string{"crop", testImagePath, "0", "0", "1000", "1000"},
+			args:        []string{"crop", "--input", testImagePath, "--x", "0", "--y", "0", "--width", "10000", "--height", "10000"},
 			expectError: true,
 			errorMsg:    "",
 		},
 		{
 			name:        "non-existent input file",
-			args:        []string{"resize", "/nonexistent/file.png", "100", "100"},
+			args:        []string{"resize", "--input", "/nonexistent/file.png", "--width", "100", "--height", "100"},
 			expectError: true,
-			errorMsg:    "no such file",
+			errorMsg:    "does not exist",
 		},
 	}
 
@@ -583,7 +595,11 @@ func TestCLIAllCommandsIntegration(t *testing.T) {
 
 	// Step 1: Resize
 	resizedPath := filepath.Join(tmpDir, "step1_resized.png")
-	cmd := exec.Command(binaryPath, "resize", originalPath, "400", "300", "-o", resizedPath)
+	cmd := exec.Command(binaryPath, "resize",
+		"--input", originalPath,
+		"--width", "400",
+		"--height", "300",
+		"--output", resizedPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("Resize failed: %v\nOutput: %s", err, string(output))
 	}
@@ -591,7 +607,10 @@ func TestCLIAllCommandsIntegration(t *testing.T) {
 
 	// Step 2: Scale the resized image
 	scaledPath := filepath.Join(tmpDir, "step2_scaled.png")
-	cmd = exec.Command(binaryPath, "scale", resizedPath, "0.5", "-o", scaledPath)
+	cmd = exec.Command(binaryPath, "scale",
+		"--input", resizedPath,
+		"--factor", "0.5",
+		"--output", scaledPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("Scale failed: %v\nOutput: %s", err, string(output))
 	}
@@ -599,7 +618,13 @@ func TestCLIAllCommandsIntegration(t *testing.T) {
 
 	// Step 3: Crop the scaled image
 	croppedPath := filepath.Join(tmpDir, "step3_cropped.png")
-	cmd = exec.Command(binaryPath, "crop", scaledPath, "50", "50", "100", "50", "-o", croppedPath)
+	cmd = exec.Command(binaryPath, "crop",
+		"--input", scaledPath,
+		"--x", "50",
+		"--y", "50",
+		"--width", "100",
+		"--height", "50",
+		"--output", croppedPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("Crop failed: %v\nOutput: %s", err, string(output))
 	}

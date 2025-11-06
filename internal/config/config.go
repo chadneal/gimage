@@ -205,11 +205,26 @@ func SaveConfig(cfg *Config) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Build markdown content
+	// Build markdown content with security warnings
 	var content strings.Builder
 	content.WriteString("# Gimage Configuration\n\n")
-	content.WriteString("This file stores your gimage settings and credentials.\n")
-	content.WriteString("Keep this file secure - it contains sensitive API keys.\n\n")
+	content.WriteString("⚠️  SECURITY WARNING ⚠️\n")
+	content.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+	content.WriteString("This file contains SENSITIVE API KEYS stored in PLAINTEXT.\n\n")
+	content.WriteString("Security Best Practices:\n")
+	content.WriteString("  • File permissions: 0600 (only you can read/write)\n")
+	content.WriteString("  • NEVER commit this file to version control\n")
+	content.WriteString("  • NEVER share this file or its contents\n")
+	content.WriteString("  • PREFER environment variables over this file\n")
+	content.WriteString("  • Rotate your API keys regularly (every 90 days)\n")
+	content.WriteString("  • Use separate keys for dev/staging/production\n\n")
+	content.WriteString("Environment variables take precedence over this file:\n")
+	content.WriteString("  export GEMINI_API_KEY=\"your-key\"\n")
+	content.WriteString("  export VERTEX_API_KEY=\"your-key\"\n")
+	content.WriteString("  export AWS_ACCESS_KEY_ID=\"your-key\"\n\n")
+	content.WriteString("For more security info: https://github.com/apresai/gimage#security\n\n")
+	content.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+	content.WriteString("## Configuration\n\n")
 
 	// Write each field if it has a value
 	if cfg.GeminiAPIKey != "" {

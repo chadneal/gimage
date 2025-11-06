@@ -15,7 +15,6 @@ const (
 	ScreenMainMenu Screen = iota
 	ScreenGenerate
 	ScreenProcess
-	ScreenBatch
 	ScreenSettings
 	ScreenHelp
 )
@@ -31,7 +30,6 @@ type Model struct {
 	mainMenu     *MainMenuModel
 	generateFlow *GenerateFlowModel
 	processMenu  *ProcessMenuModel
-	batchMenu    *BatchMenuModel
 	settings     *SettingsMenuModel
 }
 
@@ -83,11 +81,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.processMenu = NewProcessMenuModel()
 			}
 			return m, m.processMenu.Init()
-		case ScreenBatch:
-			if m.batchMenu == nil {
-				m.batchMenu = NewBatchMenuModel()
-			}
-			return m, m.batchMenu.Init()
 		case ScreenSettings:
 			if m.settings == nil {
 				m.settings = NewSettingsMenuModel()
@@ -109,8 +102,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateGenerateFlow(msg)
 	case ScreenProcess:
 		return m.updateProcessMenu(msg)
-	case ScreenBatch:
-		return m.updateBatchMenu(msg)
 	case ScreenSettings:
 		return m.updateSettings(msg)
 	default:
@@ -145,16 +136,6 @@ func (m *Model) updateProcessMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// updateBatchMenu updates the batch menu
-func (m *Model) updateBatchMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.batchMenu == nil {
-		m.batchMenu = NewBatchMenuModel()
-	}
-	var cmd tea.Cmd
-	m.batchMenu, cmd = m.batchMenu.Update(msg)
-	return m, cmd
-}
-
 // updateSettings updates the settings menu
 func (m *Model) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.settings == nil {
@@ -182,11 +163,6 @@ func (m *Model) View() string {
 	case ScreenProcess:
 		if m.processMenu != nil {
 			return m.processMenu.View()
-		}
-		return "Loading..."
-	case ScreenBatch:
-		if m.batchMenu != nil {
-			return m.batchMenu.View()
 		}
 		return "Loading..."
 	case ScreenSettings:

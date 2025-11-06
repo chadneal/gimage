@@ -1166,6 +1166,11 @@ The serve command respects the same environment variables as the CLI:
   • VERTEX_PROJECT - GCP project ID for Vertex AI
   • VERTEX_LOCATION - Vertex AI location (default: us-central1)
   • GOOGLE_APPLICATION_CREDENTIALS - Path to service account JSON
+  • AWS_ACCESS_KEY_ID - AWS Bedrock access key
+  • AWS_SECRET_ACCESS_KEY - AWS Bedrock secret key
+  • AWS_REGION - AWS region (default: us-east-1)
+  • AWS_PROFILE - AWS profile name
+  • AWS_BEARER_TOKEN_BEDROCK - AWS Bedrock bearer token (REST mode)
 
 FEATURES:
 
@@ -1196,9 +1201,10 @@ TROUBLESHOOTING:
 
 If the MCP server isn't working in Claude:
   1. Check that gimage is in your PATH: which gimage
-  2. Verify your API keys are configured: gimage auth gemini
-  3. Look at Claude's logs for error messages
-  4. Test image generation works: gimage generate "test image"
+  2. Check authentication status: gimage auth status
+  3. Verify credentials work: gimage auth test
+  4. Look at Claude's logs for error messages
+  5. Test image generation works: gimage generate "test image"
 
 For more information: https://github.com/apresai/gimage`,
 	RunE: func(cmd *cobra.Command, args []string) error {

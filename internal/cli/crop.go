@@ -2,11 +2,9 @@ package cli
 
 import (
 	"context"
-
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/apresai/gimage/internal/imaging"
 	"github.com/spf13/cobra"
@@ -14,43 +12,34 @@ import (
 
 // cropCmd represents the crop command
 var cropCmd = &cobra.Command{
-	Use:   "crop [input] [x] [y] [width] [height]",
+	Use:   "crop",
 	Short: "Crop an image to a specific region",
 	Long: `Crop an image to a specific region defined by x, y coordinates and dimensions.
 
 Examples:
-  gimage crop input.jpg 100 100 800 600
-  gimage crop input.png 0 0 1920 1080 --output cropped.png`,
-	Args: cobra.ExactArgs(5),
+  gimage crop --input input.jpg --x 100 --y 100 --width 800 --height 600
+  gimage crop -i input.png --x 0 --y 0 -w 1920 -h 1080 --output cropped.png`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		inputPath := args[0]
-
-		// Parse x coordinate
-		x, err := strconv.Atoi(args[1])
-		if err != nil {
-			return fmt.Errorf("invalid x coordinate '%s': must be an integer", args[1])
-		}
-
-		// Parse y coordinate
-		y, err := strconv.Atoi(args[2])
-		if err != nil {
-			return fmt.Errorf("invalid y coordinate '%s': must be an integer", args[2])
-		}
-
-		// Parse width
-		width, err := strconv.Atoi(args[3])
-		if err != nil {
-			return fmt.Errorf("invalid width '%s': must be a positive integer", args[3])
-		}
-
-		// Parse height
-		height, err := strconv.Atoi(args[4])
-		if err != nil {
-			return fmt.Errorf("invalid height '%s': must be a positive integer", args[4])
-		}
-
-		// Get output path from flag or generate default
+		// Get flag values
+		inputPath, _ := cmd.Flags().GetString("input")
+		x, _ := cmd.Flags().GetInt("x")
+		y, _ := cmd.Flags().GetInt("y")
+		width, _ := cmd.Flags().GetInt("width")
+		height, _ := cmd.Flags().GetInt("height")
 		outputPath, _ := cmd.Flags().GetString("output")
+
+		// Validate required flags
+		if inputPath == "" {
+			return fmt.Errorf("--input flag is required")
+		}
+		if width <= 0 {
+			return fmt.Errorf("--width must be a positive integer")
+		}
+		if height <= 0 {
+			return fmt.Errorf("--height must be a positive integer")
+		}
+
+		// Generate output path if not provided
 		if outputPath == "" {
 			ext := filepath.Ext(inputPath)
 			base := inputPath[:len(inputPath)-len(ext)]
@@ -63,17 +52,20 @@ Examples:
 		}
 
 		// Call imaging function
-		fmt.Printf("Cropping %s to region (%d,%d) %dx%d...\n", inputPath, x, y, width, height)
-		err = imaging.CropImage(context.Background(), inputPath, outputPath, x, y, width, height)
+		printInfo("Cropping %s to region (%d,%d) %dx%d...", inputPath, x, y, width, height)
+		printVerbose("Input: %s", inputPath)
+		printVerbose("Output: %s", outputPath)
+		printVerbose("Region: x=%d, y=%d, width=%d, height=%d", x, y, width, height)
+		err := imaging.CropImage(context.Background(), inputPath, outputPath, x, y, width, height)
 		if err != nil {
 			return fmt.Errorf("crop failed: %w", err)
 		}
 
 		// Report success
 		info, _ := os.Stat(outputPath)
-		fmt.Printf("✓ Cropped successfully!\n")
-		fmt.Printf("  Output: %s\n", outputPath)
-		fmt.Printf("  Size: %d bytes\n", info.Size())
+		printSuccess("Cropped successfully!")
+		printInfo("Output: %s", outputPath)
+		printInfo("Size: %d bytes", info.Size())
 
 		return nil
 	},
@@ -83,5 +75,14 @@ func init() {
 	rootCmd.AddCommand(cropCmd)
 
 	// Flags for crop command
-	cropCmd.Flags().StringP("output", "o", "", "output file path")
+	cropCmd.Flags().StringP("input", "i", "", "input image file path (required)")
+	cropCmd.Flags().Int("x", 0, "x coordinate of top-left corner (default: 0)")
+	cropCmd.Flags().Int("y", 0, "y coordinate of top-left corner (default: 0)")
+	cropCmd.Flags().Int("width", 0, "width of crop region in pixels (required)")
+	cropCmd.Flags().Int("height", 0, "height of crop region in pixels (required)")
+	cropCmd.Flags().StringP("output", "o", "", "output file path (default: input_cropped_WxH.ext)")
+
+	cropCmd.MarkFlagRequired("input")
+	cropCmd.MarkFlagRequired("width")
+	cropCmd.MarkFlagRequired("height")
 }

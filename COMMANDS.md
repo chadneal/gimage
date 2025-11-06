@@ -11,11 +11,13 @@ Complete reference for all gimage commands, flags, and options.
 - [crop](#crop) - Crop images to regions
 - [compress](#compress) - Compress images
 - [convert](#convert) - Convert image formats
-- [batch](#batch) - Batch process images
 - [auth](#auth) - Configure authentication
-  - [auth gemini](#auth-gemini)
-  - [auth vertex](#auth-vertex)
-- [config](#config) - Manage configuration
+  - [auth setup](#auth-setup) - Interactive setup wizard
+  - [auth test](#auth-test) - Test authentication
+  - [auth list](#auth-list) - List all providers
+  - [auth status](#auth-status) - Show auth status
+- [serve](#serve) - Start MCP server (includes batch operations)
+- [tui](#tui) - Launch interactive terminal UI
 - [completion](#completion) - Generate shell completions
 
 ---
@@ -42,38 +44,46 @@ gimage --version
 
 ## generate
 
-Generate images from text prompts using Google Gemini or Vertex AI.
+Generate images from text prompts using Google Gemini, Vertex AI, or AWS Bedrock.
 
 ### Usage
 ```bash
 gimage generate [prompt] [flags]
+gimage generate --prompt "your prompt" [flags]
 ```
+
+**Note:** You can provide the prompt as a positional argument (most common) or use the `--prompt` flag.
 
 ### Flags
 
 | Flag | Type | Description | Default |
 |------|------|-------------|---------|
-| `--api` | string | API to use: `gemini` or `vertex` | Auto-detected from model |
-| `--api-key` | string | Gemini API key | From env/config |
-| `--model` | string | Model to use | `gemini-2.5-flash-image` |
+| `-p, --prompt` | string | Text prompt (alternative to positional arg) | - |
+| `--provider` | string | Provider ID (e.g., `gemini/flash-2.5`, `vertex/imagen-4`) | Auto-detected |
+| `--api` | string | API to use: `gemini`, `vertex`, or `bedrock` (deprecated, use `--provider`) | Auto-detected from model |
+| `--model` | string | Model to use (deprecated, use `--provider`) | `gemini-2.5-flash-image` |
 | `--size` | string | Image size (WxH) | `1024x1024` |
 | `--style` | string | Style: `photorealistic`, `artistic`, `anime` | - |
 | `--negative` | string | Negative prompt to avoid features | - |
 | `--seed` | int | Random seed for reproducibility | `0` (random) |
+| `--quality` | string | Quality level for Nova Canvas: `standard` or `premium` | `standard` |
+| `--cfg-scale` | float | CFG scale for creativity (Nova Canvas: 1.1-10.0) | Model default |
 | `-o, --output` | string | Output file path | `generated_<timestamp>.png` |
-| `--project` | string | Vertex AI project ID | From env/config |
-| `--location` | string | Vertex AI location | `us-central1` |
-| `--list-models` | bool | List all available models and exit | `false` |
+| `--list-models` | bool | List all available models with pricing | `false` |
+| `--list-providers` | bool | List all providers with auth status | `false` |
 
 ### Available Models
 
-**Gemini API:**
-- `gemini-2.5-flash-image` (default, recommended)
-- `gemini-2.0-flash-preview-image-generation`
+**Gemini API (FREE tier):**
+- `gemini-2.5-flash-image` (default, recommended) - FREE: 1500 requests/day
+- `gemini-2.0-flash-preview-image-generation` - FREE: 1500 requests/day
 
-**Vertex AI:**
-- `imagen-3.0-generate-002`
-- `imagen-4`
+**Vertex AI (Paid):**
+- `imagen-3.0-generate-002` - $0.02-0.04/image, up to 1536x1536
+- `imagen-4` - $0.04/image, up to 2048x2048
+
+**AWS Bedrock (Paid):**
+- `amazon.nova-canvas-v1:0` - Standard: $0.04, Premium: $0.08, up to 1408x1408
 
 ### Examples
 
@@ -383,81 +393,33 @@ gimage convert input.png webp --output optimized.webp
 
 ---
 
-## batch
+## Batch Operations
 
-Batch process multiple images with concurrent operations.
+**Batch operations are not available as CLI commands.** They are available through:
 
-### Usage
-```bash
-gimage batch [operation] [input-dir] [flags]
-```
+1. **MCP Server** (for AI assistants like Claude Desktop):
+   - `batch_resize` - Concurrent image resizing
+   - `batch_compress` - Concurrent compression
+   - `batch_convert` - Concurrent format conversion
+   - See [serve](#serve) command and [MCP documentation](mcp.md)
 
-### Arguments
+2. **Shell Scripts** (for CLI users):
+   ```bash
+   # Resize all JPG files using find + xargs
+   find photos/ -name "*.jpg" | xargs -P 4 -I {} gimage resize --input {} --width 800 --height 600
 
-| Argument | Type | Description | Required |
-|----------|------|-------------|----------|
-| `operation` | string | Operation: `resize`, `scale`, `crop`, `compress`, `convert` | Yes |
-| `input-dir` | string | Input directory path | Yes |
+   # Compress all images in parallel
+   find photos/ -name "*.jpg" -o -name "*.png" | xargs -P 4 -I {} gimage compress --input {} --quality 85
 
-### Flags
-
-| Flag | Type | Description | Default |
-|------|------|-------------|---------|
-| `-o, --output` | string | Output directory path | Same as input |
-| `--workers` | int | Number of parallel workers | `4` |
-| `--width` | int | Width for resize operation | - |
-| `--height` | int | Height for resize operation | - |
-| `--quality` | int | Quality for compress operation | `90` |
-
-### Examples
-
-**Resize all images:**
-```bash
-gimage batch resize photos/ --width 800 --height 600
-```
-
-**Resize with output directory:**
-```bash
-gimage batch resize photos/ --width 1920 --height 1080 --output resized/
-```
-
-**Compress all images:**
-```bash
-gimage batch compress photos/ --quality 85 --output compressed/
-```
-
-**Convert all to WebP:**
-```bash
-gimage batch convert photos/ webp --output webp/
-```
-
-**Use 8 workers for faster processing:**
-```bash
-gimage batch resize photos/ --width 800 --height 600 --workers 8
-```
-
-### Supported Operations
-
-| Operation | Description | Required Flags |
-|-----------|-------------|----------------|
-| `resize` | Resize to dimensions | `--width`, `--height` |
-| `scale` | Scale by factor | (factor as argument) |
-| `compress` | Compress images | `--quality` (optional) |
-| `convert` | Convert format | (format as argument) |
-
-### Notes
-- Processes all supported image formats in directory
-- Default 4 workers (adjust based on CPU cores)
-- Creates output directory if it doesn't exist
-- Skips unsupported files automatically
-- Shows progress for each file
-- Preserves directory structure in output
+   # Convert all PNG to WebP
+   find photos/ -name "*.png" | xargs -P 4 -I {} sh -c 'gimage convert --input "$1" --format webp --output "${1%.png}.webp"' _ {}
+   ```
 
 ---
 
 ## auth
 
-Manage authentication for Gemini and Vertex AI.
+Manage authentication for all image generation providers (Gemini, Vertex AI, AWS Bedrock).
 
 ### Usage
 ```bash
@@ -465,201 +427,367 @@ gimage auth [subcommand]
 ```
 
 ### Subcommands
-- `gemini` - Configure Gemini API authentication
-- `vertex` - Configure Vertex AI authentication
+- `setup <provider>` - Interactive setup wizard for a provider
+- `test <provider>` - Test authentication for a provider
+- `list` - List all providers with auth status and pricing
+- `status` - Show detailed authentication status
 
 ---
 
-### auth gemini
+### auth setup
 
-Interactive setup for Gemini API authentication.
+Interactive setup wizard for configuring provider credentials.
 
-### Usage
+#### Usage
 ```bash
-gimage auth gemini
+gimage auth setup <provider>
 ```
 
-### Interactive Prompts
-1. **Gemini API Key** - Your API key from AI Studio
+#### Arguments
 
-### Process
-1. Loads existing config values as defaults
-2. Prompts for API key (shows masked preview if existing)
-3. Saves to `~/.gimage/config.md` with 0600 permissions
-4. Confirms successful configuration
+| Argument | Description | Examples |
+|----------|-------------|----------|
+| `provider` | Provider ID or alias | `gemini`, `gemini/flash-2.5`, `vertex/imagen-4`, `bedrock/nova-canvas` |
 
-### Get API Key
-Visit: https://aistudio.google.com/app/apikey
+#### Examples
 
-### Example Session
+**Quick start with Gemini (FREE tier):**
 ```bash
-$ gimage auth gemini
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Gemini API Authentication Setup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+gimage auth setup gemini
+```
 
-Get your API key from: https://aistudio.google.com/app/apikey
+**Setup Vertex AI Imagen 4:**
+```bash
+gimage auth setup vertex/imagen-4
+```
 
-Gemini API Key [...cVVI]: <paste your key or press Enter>
+**Setup AWS Bedrock Nova Canvas:**
+```bash
+gimage auth setup bedrock/nova-canvas
+```
 
-✓ Configuration saved successfully!
-  Location: /Users/you/.gimage/config.md
+#### What it does
+1. Shows provider information (pricing, models, capabilities)
+2. Guides you through required credentials
+3. Shows existing values (masked for secrets)
+4. Validates configuration
+5. Saves to `~/.gimage/config.md` with secure permissions (0600)
 
-You can now use Gemini API with:
-  gimage generate "your prompt here"
+---
+
+### auth test
+
+Test if authentication works for a provider by making real API calls.
+
+#### Usage
+```bash
+gimage auth test <provider>
+```
+
+#### Arguments
+
+| Argument | Description | Examples |
+|----------|-------------|----------|
+| `provider` | Provider ID or alias | `gemini`, `vertex/imagen-4`, `bedrock` |
+
+#### Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--all` | Test all configured providers | `false` |
+| `--generate` | Actually generate a test image (costs money) | `false` |
+| `--verbose` | Show detailed test output | `false` |
+
+#### Examples
+
+**Test Gemini authentication:**
+```bash
+gimage auth test gemini
+```
+
+**Test with actual image generation:**
+```bash
+gimage auth test gemini --generate
+```
+
+**Test all configured providers:**
+```bash
+gimage auth test --all
+```
+
+#### What it does
+1. Checks if required credentials are present
+2. Validates credential format
+3. Attempts to create API client
+4. Optionally generates a small test image (256x256)
+5. Reports success or detailed errors
+
+---
+
+### auth list
+
+List all available providers with auth status, pricing, and capabilities.
+
+#### Usage
+```bash
+gimage auth list [flags]
+```
+
+#### Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--configured` | Show only configured providers | `false` |
+| `--missing` | Show only providers missing credentials | `false` |
+| `--detailed` | Show detailed credential requirements | `false` |
+
+#### Examples
+
+**List all providers:**
+```bash
+gimage auth list
+```
+
+**Show only configured providers:**
+```bash
+gimage auth list --configured
+```
+
+**Show detailed requirements for missing providers:**
+```bash
+gimage auth list --missing --detailed
+```
+
+#### Output
+
+Shows table with:
+- ✓ / ✗ Configuration status
+- Provider ID (e.g., `gemini/flash-2.5`)
+- Provider name
+- Pricing (FREE/paid with cost)
+- Credential source (env/config/both)
+- Missing credentials
+
+---
+
+### auth status
+
+Show detailed authentication status for all providers.
+
+#### Usage
+```bash
+gimage auth status
+```
+
+#### What it shows
+
+**For each provider:**
+- Configuration status (✓ configured / ✗ not configured)
+- Credential sources (environment variables, config file)
+- Masked preview of API keys
+- Warnings about conflicting credentials
+
+**Credential Priority Hierarchy:**
+```
+1. CLI Flags       (highest priority)
+   ↓
+2. Environment Variables
+   ↓
+3. Config File (~/.gimage/config.md)
+   ↓
+4. Defaults        (lowest priority)
+```
+
+#### Example Output
+```bash
+$ gimage auth status
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Authentication Status
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Credential Priority: CLI Flags > Environment Variables > Config File > Defaults
+
+✓ Gemini API (Configured)
+  • Environment: GEMINI_API_KEY = AIza***cVVI
+  
+✓ Vertex AI (Configured)
+  • Config file: vertex_api_key = AIza***xYzW (Express Mode)
+  • Config file: vertex_project = my-gcp-project
+  • Environment: VERTEX_LOCATION = us-central1
+
+✗ AWS Bedrock (Not Configured)
+  Run: gimage auth setup bedrock
 ```
 
 ---
 
-### auth vertex
+## serve
 
-Interactive setup for Vertex AI authentication.
-
-### Usage
-```bash
-gimage auth vertex
-```
-
-### Authentication Modes
-
-**Mode 1: Express Mode (API Key)**
-- Simplest setup
-- Good for development and testing
-- Get API key from Google Cloud Console
-
-**Mode 2: Full Mode (Service Account)**
-- Production-ready
-- Fine-grained access control
-- Requires service account JSON file
-
-**Mode 3: Full Mode (ADC)**
-- Local development
-- Uses your gcloud credentials
-- Requires `gcloud auth application-default login`
-
-### Interactive Prompts
-
-**All Modes:**
-1. Choose authentication mode (1, 2, or 3)
-
-**Mode 1 (Express):**
-1. Vertex AI API Key
-2. Google Cloud Project ID (optional)
-3. Location/Region
-
-**Mode 2 (Service Account):**
-1. Google Cloud Project ID
-2. Location/Region
-3. Path to service account JSON file
-
-**Mode 3 (ADC):**
-1. Google Cloud Project ID
-2. Location/Region
-
-### Example Session (Express Mode)
-```bash
-$ gimage auth vertex
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Vertex AI Authentication Setup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Choose your authentication mode:
-
-  1. Express Mode - API Key (simple, good for testing)
-     • Sign up at: https://console.cloud.google.com/vertex-ai
-     • Get API key from: APIs & Services > Credentials
-     • Best for: Development, testing, rapid prototyping
-
-  2. Full Mode - Service Account (secure, production-ready)
-     • Requires: GCP project, service account JSON file
-     • Best for: Production, fine-grained access control
-
-  3. Full Mode - Application Default Credentials (local dev)
-     • Run: gcloud auth application-default login
-     • Best for: Local development with your GCP account
-
-Choose mode (1, 2, or 3) [1]: 1
-
-━━━ Express Mode Setup ━━━
-
-Get your API key:
-  1. Go to: https://console.cloud.google.com/vertex-ai
-  2. Sign up for Vertex AI Express Mode
-  3. Find your API key in: APIs & Services > Credentials
-
-Vertex AI API Key: <paste your key>
-Google Cloud Project ID (optional): my-project
-Location/Region [us-central1]:
-
-✓ Express Mode configured successfully!
-  Location: /Users/you/.gimage/config.md
-
-You can now use Vertex AI with:
-  gimage generate --api vertex "your prompt here"
-```
-
-### Get Started with Vertex AI
-
-**Express Mode:**
-1. Visit: https://console.cloud.google.com/vertex-ai
-2. Sign up for Vertex AI Express Mode
-3. Get API key from: APIs & Services > Credentials
-
-**Service Account:**
-1. Create GCP project
-2. Enable Vertex AI API
-3. Create service account
-4. Download JSON key file
-
-**ADC:**
-```bash
-gcloud auth application-default login
-```
-
----
-
-## config
-
-Manage gimage configuration.
+Start MCP (Model Context Protocol) server for AI assistant integration.
 
 ### Usage
 ```bash
-gimage config [flags]
+gimage serve [flags]
 ```
 
 ### Description
-Currently a placeholder for future configuration management commands.
-Use `gimage auth` commands to set up authentication.
 
-### Configuration File
+Starts gimage as an MCP server that AI assistants (like Claude Desktop) can use to:
+- Generate AI images
+- Process images (resize, scale, crop, compress, convert)
+- Perform batch operations (concurrent processing)
 
-**Location:** `~/.gimage/config.md`
+The server communicates over stdio using JSON-RPC protocol.
 
-**Format:**
-```markdown
-# Gimage Configuration
+### Flags
 
-**gemini_api_key**: AIzaSy...
-**vertex_api_key**: AIzaSy...
-**vertex_project**: your-project-id
-**vertex_location**: us-central1
-**vertex_credentials_path**: ~/.gimage/credentials/service-account.json
-**default_api**: gemini
-**default_model**: gemini-2.5-flash-image
-**default_size**: 1024x1024
-**log_level**: info
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--verbose` | Enable detailed logging to stderr | `false` |
+
+### Claude Desktop Configuration
+
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Linux:** `~/.config/Claude/claude_desktop_config.json`
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+**Homebrew installation:**
+```json
+{
+  "mcpServers": {
+    "gimage": {
+      "command": "gimage",
+      "args": ["serve"]
+    }
+  }
+}
 ```
 
-### Manual Editing
-You can manually edit `~/.gimage/config.md` if needed:
+**npm installation:**
+```json
+{
+  "mcpServers": {
+    "gimage": {
+      "command": "npx",
+      "args": ["-y", "@apresai/gimage-mcp"]
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+The MCP server exposes 10 tools:
+
+| Tool | Purpose |
+|------|---------|
+| `generate_image` | AI image generation from text |
+| `resize_image` | Resize to specific dimensions |
+| `scale_image` | Scale by factor (preserves aspect ratio) |
+| `crop_image` | Crop to specific region |
+| `compress_image` | Reduce file size |
+| `convert_image` | Convert between formats |
+| `batch_resize` | Resize multiple images concurrently |
+| `batch_compress` | Compress multiple images concurrently |
+| `batch_convert` | Convert multiple images concurrently |
+| `list_models` | List available AI models with pricing |
+
+### Examples
+
+**Start server:**
 ```bash
-# Edit with your preferred editor
-nano ~/.gimage/config.md
-vim ~/.gimage/config.md
-code ~/.gimage/config.md
+gimage serve
 ```
 
-Format: `**key**: value` on each line
+**Start with verbose logging:**
+```bash
+gimage serve --verbose
+```
+
+**Test server manually:**
+```bash
+# Server reads JSON-RPC from stdin and writes to stdout
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | gimage serve
+```
+
+### Troubleshooting
+
+**If MCP server isn't working in Claude:**
+
+1. **Verify gimage is in PATH:**
+   ```bash
+   which gimage
+   gimage --version
+   ```
+
+2. **Test credentials:**
+   ```bash
+   gimage auth status
+   gimage auth test gemini
+   ```
+
+3. **Test image generation works:**
+   ```bash
+   gimage generate "test image"
+   ```
+
+4. **Check Claude Desktop logs:**
+   - macOS: `~/Library/Logs/Claude/`
+   - Linux: `~/.config/Claude/logs/`
+
+5. **Test serve command directly:**
+   ```bash
+   gimage serve --verbose
+   # Press Ctrl+C to stop
+   ```
+
+For more details, see [MCP documentation](mcp.md) and [docs/MCP_USAGE.md](docs/MCP_USAGE.md).
+
+---
+
+## tui
+
+Launch interactive Terminal User Interface for gimage.
+
+### Usage
+```bash
+gimage tui
+```
+
+### Alternative
+```bash
+gimage --interactive
+```
+
+### Description
+
+Launches a menu-driven interface for:
+- Generating images from text prompts
+- Processing images (resize, scale, crop, compress, convert)
+- Configuring API keys and settings
+- Viewing help and keyboard shortcuts
+
+### Features
+- Interactive prompt-based workflow
+- Real-time preview of operations
+- Keyboard navigation
+- Context-sensitive help
+
+### Examples
+
+**Launch TUI:**
+```bash
+gimage tui
+```
+
+**Or use global flag:**
+```bash
+gimage --interactive
+```
+
+### Keyboard Shortcuts
+
+Will be shown in the TUI help screen.
 
 ---
 
