@@ -52,13 +52,13 @@ builds:
 
   # Deployment manager binary
   - id: gimage-deploy
-    main: ./gimage-deploy/cmd/gimage-deploy
+    dir: ./gimage-deploy
+    main: ./cmd/gimage-deploy
     binary: gimage-deploy
 
     # Build flags
     ldflags:
       - -s -w
-      - -X github.com/apresai/gimage/gimage-deploy/internal/version.Version={{.Version}}
 
     # Platforms to build for
     goos:
