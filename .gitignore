@@ -88,8 +88,12 @@ temp/
 *.log
 
 # Build artifacts
-gimage
-gimage-*
+/gimage
+/gimage-*
+!gimage-deploy/
+gimage-deploy/bin/
+gimage-deploy/*.md
+!gimage-deploy/README.md
 *.tar.gz
 *.zip
 builds/
