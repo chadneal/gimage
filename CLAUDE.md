@@ -448,89 +448,78 @@ Core development phases:
 9. Lambda deployment
 10. Distribution (Homebrew, npm)
 
-## Go SDK Generation
+## Go SDK
 
-The project includes automatic Go SDK generation from the OpenAPI spec.
+The Go SDK is published as a separate repository for proper Go module management.
 
-### Overview
+### SDK Repository
 
-- **Source**: `openapi.yaml` (OpenAPI 3.0 specification)
-- **Generator**: `oapi-codegen` v2 (industry-standard tool)
-- **Output**: `sdk/go/` directory with type-safe Go client
-- **Regeneration**: Run `make generate-sdk` after updating `openapi.yaml`
+- **Repository**: [github.com/apresai/gimage-go-sdk](https://github.com/apresai/gimage-go-sdk)
+- **Import path**: `github.com/apresai/gimage-go-sdk`
+- **Versioning**: Independent semantic versioning (v1.0.0, v1.1.0, etc.)
+- **Installation**: `go get github.com/apresai/gimage-go-sdk@latest`
 
-### SDK Components
+### Why Separate Repository?
 
-1. **types.gen.go** - All request/response types with JSON tags
-2. **client.gen.go** - HTTP client with methods for each endpoint
-3. **spec.gen.go** - Embedded OpenAPI spec for runtime validation
-4. **go.mod** - Independent Go module for the SDK
-5. **README.md** - Complete documentation with examples
-6. **example_test.go** - Working code examples
+Go best practices recommend separate repositories for libraries:
+1. **Independent versioning** - SDK can have different release cadence than CLI
+2. **Smaller dependencies** - Users only pull SDK code, not entire project
+3. **Standard module path** - Simpler imports without subdirectories
+4. **Better discoverability** - Listed separately on pkg.go.dev
 
-### Building the SDK
+### SDK Generation (for maintainers)
+
+The SDK is auto-generated from `openapi.yaml` and published to the separate repository:
 
 ```bash
-# One-time setup: Install oapi-codegen
-make install-sdk-tools
-
-# Generate SDK from openapi.yaml
+# In main gimage repo:
+# 1. Generate SDK locally
 make generate-sdk
 
-# Clean generated files
-make clean-sdk
+# 2. Copy to SDK repo
+cp -r sdk/go/* /path/to/gimage-go-sdk/
+
+# 3. In SDK repo: commit, tag, and push
+cd /path/to/gimage-go-sdk
+git add .
+git commit -m "Update SDK from openapi.yaml vX.X.X"
+git tag v1.x.x
+git push origin main --tags
 ```
 
-### SDK Usage Patterns
+### SDK Usage
 
-**Basic client creation**:
-```go
-import gimage "github.com/apresai/gimage/sdk/go"
-
-client, _ := gimage.NewClient("https://your-api.execute-api.us-east-1.amazonaws.com/prod")
+**Installation**:
+```bash
+go get github.com/apresai/gimage-go-sdk@latest
 ```
 
-**With API key authentication** (for API Gateway):
+**Usage**:
 ```go
+import gimage "github.com/apresai/gimage-go-sdk"
+
+// Create client with API key
 client, _ := gimage.NewClient(
-    baseURL,
+    "https://your-api.execute-api.us-east-1.amazonaws.com/production",
     gimage.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
         req.Header.Set("x-api-key", apiKey)
         return nil
     }),
 )
-```
 
-**Making API calls**:
-```go
+// Generate image
 resp, _ := client.GenerateImage(ctx, gimage.GenerateImageJSONRequestBody{
     Prompt: "sunset over mountains",
     Model:  stringPtr("gemini-2.5-flash-image"),
-    Size:   stringPtr("1024x1024"),
 })
 ```
 
-### Type Safety
-
-All types are generated from OpenAPI spec:
-- Enums for `ImageStyle`, `ResponseFormat`, `ImageFormat`
-- Validation constraints from JSON schema
-- Optional fields use pointers (`*string`, `*int`)
-- Required fields use values
-
-### Important SDK Rules
-
-1. **Never manually edit generated files** (`*.gen.go`)
-2. **Always regenerate after OpenAPI changes**: `make generate-sdk`
-3. **Commit generated SDK to git** (makes it easy for users)
-4. **Update SDK version** in go.mod when releasing
-5. **Test SDK** with real API after regeneration
-
 ### SDK Documentation
 
-- **Full guide**: `sdk/go/README.md`
-- **Examples**: `sdk/go/example_test.go`
-- **Real-world usage**: `sdk/go/EXAMPLE.md`
+Complete documentation in the SDK repository:
+- **README**: Installation, quick start, API reference
+- **EXAMPLE.md**: Real-world usage examples
+- **GoDoc**: [pkg.go.dev/github.com/apresai/gimage-go-sdk](https://pkg.go.dev/github.com/apresai/gimage-go-sdk)
 
 ## Lambda Deployment Tool (gimage-deploy)
 

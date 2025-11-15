@@ -573,18 +573,20 @@ Run `gimage [command] --help` for detailed usage of any command.
 
 ## Go SDK
 
-A type-safe Go SDK is auto-generated from the OpenAPI specification.
+A type-safe Go SDK for programmatic API access.
+
+**Repository**: [github.com/apresai/gimage-go-sdk](https://github.com/apresai/gimage-go-sdk)
 
 ### Installation
 
 ```bash
-go get github.com/apresai/gimage/sdk/go
+go get github.com/apresai/gimage-go-sdk@latest
 ```
 
-### Usage
+### Quick Start
 
 ```go
-import gimage "github.com/apresai/gimage/sdk/go"
+import gimage "github.com/apresai/gimage-go-sdk"
 
 // Create client with API key authentication
 client, _ := gimage.NewClient(
@@ -608,24 +610,14 @@ resp, _ := client.GenerateImage(ctx, gimage.GenerateImageJSONRequestBody{
 - ✅ **Type-safe**: All types generated from OpenAPI spec
 - ✅ **Auto-complete**: Full IDE support with godoc
 - ✅ **API Gateway ready**: Built-in API key authentication support
-- ✅ **Easy to use**: Idiomatic Go patterns
+- ✅ **Standard Go modules**: Independent versioning with semantic versioning
 
-### Generating the SDK
+### Documentation
 
-The SDK is auto-generated from `openapi.yaml`:
-
-```bash
-# One-time: Install oapi-codegen
-make install-sdk-tools
-
-# Generate SDK
-make generate-sdk
-
-# Clean generated files
-make clean-sdk
-```
-
-**Documentation**: See `sdk/go/README.md` for complete guide and examples.
+Complete documentation, examples, and API reference:
+- **SDK Repository**: [github.com/apresai/gimage-go-sdk](https://github.com/apresai/gimage-go-sdk)
+- **GoDoc**: [pkg.go.dev/github.com/apresai/gimage-go-sdk](https://pkg.go.dev/github.com/apresai/gimage-go-sdk)
+- **Examples**: See the SDK repository for working examples
 
 ---
 
