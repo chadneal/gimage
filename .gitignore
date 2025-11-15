@@ -53,6 +53,12 @@ credentials/
 *.key
 *.p12
 
+# Lambda API keys and deployment state (gimage-deploy)
+.gimage-deploy/
+api_keys.encrypted.json
+deployments.json
+*.encrypted.json
+
 # Generated and processed images
 generated_*.png
 generated_*.jpg

@@ -571,6 +571,64 @@ Run `gimage [command] --help` for detailed usage of any command.
 
 ---
 
+## Go SDK
+
+A type-safe Go SDK is auto-generated from the OpenAPI specification.
+
+### Installation
+
+```bash
+go get github.com/apresai/gimage/sdk/go
+```
+
+### Usage
+
+```go
+import gimage "github.com/apresai/gimage/sdk/go"
+
+// Create client with API key authentication
+client, _ := gimage.NewClient(
+    "https://your-api.execute-api.us-east-1.amazonaws.com/production",
+    gimage.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+        req.Header.Set("x-api-key", "your-api-key")
+        return nil
+    }),
+)
+
+// Generate image
+resp, _ := client.GenerateImage(ctx, gimage.GenerateImageJSONRequestBody{
+    Prompt: "sunset over mountains",
+    Model:  stringPtr("gemini-2.5-flash-image"),
+    Size:   stringPtr("1024x1024"),
+})
+```
+
+### Features
+
+- ✅ **Type-safe**: All types generated from OpenAPI spec
+- ✅ **Auto-complete**: Full IDE support with godoc
+- ✅ **API Gateway ready**: Built-in API key authentication support
+- ✅ **Easy to use**: Idiomatic Go patterns
+
+### Generating the SDK
+
+The SDK is auto-generated from `openapi.yaml`:
+
+```bash
+# One-time: Install oapi-codegen
+make install-sdk-tools
+
+# Generate SDK
+make generate-sdk
+
+# Clean generated files
+make clean-sdk
+```
+
+**Documentation**: See `sdk/go/README.md` for complete guide and examples.
+
+---
+
 ## Lambda API Distribution
 
 Deploy Gimage as a serverless REST API on AWS Lambda for web application integration.
@@ -580,23 +638,47 @@ Deploy Gimage as a serverless REST API on AWS Lambda for web application integra
 - **Serverless Architecture**: AWS Lambda on ARM64/Graviton2 (provided.al2023 runtime)
 - **Auto-Scaling**: Handles 0 to thousands of requests automatically
 - **Cost-Effective**: Pay only for what you use (~$0.25/month for 10K requests)
-- **Global CDN**: S3 + CloudFront for fast image delivery
+- **S3 Storage**: Automatic S3 bucket for image storage with presigned URLs
 - **Production-Ready**: Full CORS, error handling, monitoring
+- **API Gateway Integration**: Managed API keys, usage plans, rate limiting
 
 ### Quick Deploy
+
+**Option 1: Using gimage-deploy tool (Recommended)**
 
 ```bash
 # Build Lambda function
 make build-lambda
-
-# Package for deployment
 make package-lambda
 
-# Deploy with CDK (requires infrastructure setup)
-make deploy-lambda
+# Deploy using gimage-deploy (from sibling directory)
+cd ../gimage-deploy
+./bin/gimage-deploy deploy \
+  --id production \
+  --stage production \
+  --region us-east-1 \
+  --lambda-code ../gimage/bin/lambda.zip \
+  --memory 512 \
+  --timeout 30
+
+# Create API key
+./bin/gimage-deploy keys create --name prod-key --deployment production
 ```
 
-See [lambda.md](lambda.md) for complete deployment guide.
+**Option 2: Manual deployment**
+
+See [lambda.md](lambda.md) for manual deployment guide with AWS CLI.
+
+### Deployment Tool
+
+The `gimage-deploy` CLI tool (separate project) provides complete deployment management:
+- One-command deployment to AWS Lambda
+- API Gateway configuration with API keys
+- Monitoring (logs, metrics, health checks)
+- Interactive TUI for management
+- No hardcoded account IDs - works in any AWS account
+
+See the `gimage-deploy` directory for the deployment management tool.
 
 ### API Endpoints
 

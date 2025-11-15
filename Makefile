@@ -1,4 +1,4 @@
-.PHONY: build build-all test test-coverage install clean lint benchmark info help build-lambda package-lambda deploy-lambda clean-lambda lambda-logs release update-changelog sync-version version
+.PHONY: build build-all test test-coverage install clean lint benchmark info help build-lambda package-lambda deploy-lambda clean-lambda lambda-logs release update-changelog sync-version version generate-sdk install-sdk-tools clean-sdk
 
 # Binary name
 BINARY_NAME=gimage
@@ -60,6 +60,11 @@ help:
 	@echo "  update-changelog - Update CHANGELOG.md"
 	@echo "  release          - Create and publish new release"
 	@echo "  info             - Display version and release notes"
+	@echo ""
+	@echo "🔧 SDK Commands:"
+	@echo "  install-sdk-tools - Install oapi-codegen (one-time setup)"
+	@echo "  generate-sdk     - Generate Go SDK from openapi.yaml"
+	@echo "  clean-sdk        - Remove generated SDK files"
 	@echo ""
 	@echo "🔍 Quality Commands:"
 	@echo "  lint             - Run linter"
@@ -413,3 +418,48 @@ release:
 	@echo "  Homebrew: brew install apresai/tap/gimage"
 	@echo "  npm:      npm install -g @apresai/gimage-mcp"
 	@echo ""
+
+## ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 📦 SDK Generation
+## ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SDK_DIR=sdk/go
+SDK_PKG=github.com/apresai/gimage/sdk/go
+
+## install-sdk-tools: Install oapi-codegen for SDK generation
+install-sdk-tools:
+	@echo "Installing oapi-codegen..."
+	@go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+	@echo "✓ SDK tools installed"
+
+## generate-sdk: Generate Go SDK from OpenAPI spec
+generate-sdk:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  Generating Go SDK from openapi.yaml"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "Step 1: Creating SDK directory..."
+	@mkdir -p $(SDK_DIR)
+	@echo "Step 2: Generating types..."
+	@oapi-codegen -generate types -package gimage -o $(SDK_DIR)/types.gen.go openapi.yaml
+	@echo "Step 3: Generating client..."
+	@oapi-codegen -generate client -package gimage -o $(SDK_DIR)/client.gen.go openapi.yaml
+	@echo "Step 4: Generating spec..."
+	@oapi-codegen -generate spec -package gimage -o $(SDK_DIR)/spec.gen.go openapi.yaml
+	@echo "Step 5: Creating README..."
+	@echo "# Gimage Go SDK\n\nGenerated from OpenAPI spec v$(VERSION)\n\n## Installation\n\n\`\`\`bash\ngo get $(SDK_PKG)\n\`\`\`\n\n## Usage\n\n\`\`\`go\nimport \"$(SDK_PKG)\"\n\nclient, _ := gimage.NewClient(\"https://your-api.execute-api.us-east-1.amazonaws.com/prod\")\nresp, _ := client.GenerateImage(ctx, gimage.GenerateImageJSONRequestBody{\n    Prompt: \"sunset over mountains\",\n})\n\`\`\`\n\nSee [openapi.yaml](../../openapi.yaml) for full API documentation.\n" > $(SDK_DIR)/README.md
+	@echo ""
+	@echo "✓ SDK generated successfully at $(SDK_DIR)/"
+	@echo ""
+	@echo "Files created:"
+	@ls -lh $(SDK_DIR)
+	@echo ""
+	@echo "Import in your Go code:"
+	@echo "  import \"$(SDK_PKG)\""
+	@echo ""
+
+## clean-sdk: Remove generated SDK files
+clean-sdk:
+	@echo "Cleaning SDK directory..."
+	@rm -rf $(SDK_DIR)
+	@echo "✓ SDK cleaned"

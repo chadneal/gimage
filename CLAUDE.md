@@ -30,6 +30,11 @@ make test-coverage  # Run tests with coverage
 make lint           # Run linter
 make clean          # Clean artifacts
 make benchmark      # Run benchmarks
+
+# SDK Generation
+make install-sdk-tools  # Install oapi-codegen (one-time)
+make generate-sdk       # Generate Go SDK from openapi.yaml
+make clean-sdk          # Remove generated SDK files
 ```
 
 ## Project Structure
@@ -37,17 +42,26 @@ make benchmark      # Run benchmarks
 ```
 gimage/
 ├── cmd/gimage/              # CLI entrypoint
+├── cmd/lambda/              # Lambda entrypoint
 ├── internal/
 │   ├── imaging/             # Image processing operations
 │   ├── generate/            # AI image generation (Gemini, Vertex, Bedrock)
 │   ├── config/              # Configuration & authentication
 │   ├── cli/                 # CLI commands
-│   └── mcp/                 # MCP server implementation
+│   ├── mcp/                 # MCP server implementation
+│   └── lambdahandler/       # Lambda HTTP handler
 ├── pkg/models/              # Shared types
+├── sdk/go/                  # Generated Go SDK (from openapi.yaml)
+│   ├── client.gen.go        # HTTP client with all methods
+│   ├── types.gen.go         # Type-safe request/response structs
+│   ├── spec.gen.go          # Embedded OpenAPI spec
+│   ├── README.md            # SDK documentation
+│   └── example_test.go      # Usage examples
 ├── test/
 │   ├── fixtures/            # Test images (DO NOT MODIFY)
 │   └── integration/         # Integration tests
-└── docs/                    # Documentation
+├── docs/                    # Documentation
+└── openapi.yaml             # OpenAPI 3.0 spec (source of truth)
 ```
 
 ## Architecture Patterns
@@ -433,3 +447,347 @@ Core development phases:
 8. MCP server
 9. Lambda deployment
 10. Distribution (Homebrew, npm)
+
+## Go SDK Generation
+
+The project includes automatic Go SDK generation from the OpenAPI spec.
+
+### Overview
+
+- **Source**: `openapi.yaml` (OpenAPI 3.0 specification)
+- **Generator**: `oapi-codegen` v2 (industry-standard tool)
+- **Output**: `sdk/go/` directory with type-safe Go client
+- **Regeneration**: Run `make generate-sdk` after updating `openapi.yaml`
+
+### SDK Components
+
+1. **types.gen.go** - All request/response types with JSON tags
+2. **client.gen.go** - HTTP client with methods for each endpoint
+3. **spec.gen.go** - Embedded OpenAPI spec for runtime validation
+4. **go.mod** - Independent Go module for the SDK
+5. **README.md** - Complete documentation with examples
+6. **example_test.go** - Working code examples
+
+### Building the SDK
+
+```bash
+# One-time setup: Install oapi-codegen
+make install-sdk-tools
+
+# Generate SDK from openapi.yaml
+make generate-sdk
+
+# Clean generated files
+make clean-sdk
+```
+
+### SDK Usage Patterns
+
+**Basic client creation**:
+```go
+import gimage "github.com/apresai/gimage/sdk/go"
+
+client, _ := gimage.NewClient("https://your-api.execute-api.us-east-1.amazonaws.com/prod")
+```
+
+**With API key authentication** (for API Gateway):
+```go
+client, _ := gimage.NewClient(
+    baseURL,
+    gimage.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+        req.Header.Set("x-api-key", apiKey)
+        return nil
+    }),
+)
+```
+
+**Making API calls**:
+```go
+resp, _ := client.GenerateImage(ctx, gimage.GenerateImageJSONRequestBody{
+    Prompt: "sunset over mountains",
+    Model:  stringPtr("gemini-2.5-flash-image"),
+    Size:   stringPtr("1024x1024"),
+})
+```
+
+### Type Safety
+
+All types are generated from OpenAPI spec:
+- Enums for `ImageStyle`, `ResponseFormat`, `ImageFormat`
+- Validation constraints from JSON schema
+- Optional fields use pointers (`*string`, `*int`)
+- Required fields use values
+
+### Important SDK Rules
+
+1. **Never manually edit generated files** (`*.gen.go`)
+2. **Always regenerate after OpenAPI changes**: `make generate-sdk`
+3. **Commit generated SDK to git** (makes it easy for users)
+4. **Update SDK version** in go.mod when releasing
+5. **Test SDK** with real API after regeneration
+
+### SDK Documentation
+
+- **Full guide**: `sdk/go/README.md`
+- **Examples**: `sdk/go/example_test.go`
+- **Real-world usage**: `sdk/go/EXAMPLE.md`
+
+## Lambda Deployment Tool (gimage-deploy)
+
+The `gimage-deploy` tool in the sibling directory manages Lambda deployments and API keys.
+
+### Project Location
+
+```
+gimage/                  # Main gimage CLI
+gimage-deploy/           # Deployment management tool (separate repo)
+```
+
+### Overview
+
+**gimage-deploy** is a complete deployment manager for gimage Lambda functions:
+- Deploy Lambda to AWS with one command
+- Manage API Gateway API keys (CRUD operations)
+- Monitor deployments (logs, metrics, health)
+- Interactive TUI for visual management
+- No CDK/Terraform required - uses AWS SDK directly
+
+### Architecture
+
+**Technology Stack**:
+- Pure Go 1.22+
+- AWS SDK v2 (Lambda, S3, IAM, API Gateway, CloudWatch, STS)
+- Cobra for CLI framework
+- Bubbletea for TUI
+- AES-256-GCM for API key encryption
+
+**Core Components**:
+- `internal/aws/` - AWS service clients (Lambda, S3, IAM, etc.)
+- `internal/deploy/` - Deployment orchestration
+- `internal/apikeys/` - API key management with encryption
+- `internal/storage/` - Local state management
+- `internal/tui/` - Bubbletea interactive UI
+- `pkg/utils/` - Crypto and validation utilities
+
+### Deployment Manager Features
+
+**Full Lifecycle Management**:
+1. Creates S3 bucket for Lambda storage
+2. Creates IAM role with Lambda execution policies
+3. Deploys Lambda function (ARM64/Graviton2)
+4. Creates API Gateway with proxy integration
+5. Adds Lambda invoke permissions
+6. Associates API keys with usage plans
+7. Saves deployment metadata locally
+
+**Resource Naming** (auto-generated, no hardcoding):
+- S3 Bucket: `gimage-storage-{deployment-id}`
+- Lambda: `gimage-processor-{deployment-id}`
+- IAM Role: `gimage-lambda-role-{deployment-id}`
+- API Gateway: `gimage-api-{deployment-id}`
+
+### Available Commands
+
+**Deployment Operations**:
+```bash
+gimage-deploy deploy --id prod --stage production --region us-east-1 --lambda-code lambda.zip
+gimage-deploy list                    # List all deployments
+gimage-deploy status <deployment-id>  # Show deployment details
+gimage-deploy update <deployment-id>  # Update configuration
+gimage-deploy destroy <deployment-id> # Delete deployment (with confirmation)
+```
+
+**API Key Management**:
+```bash
+gimage-deploy keys create --name prod-key --deployment prod
+gimage-deploy keys list <deployment-id>
+gimage-deploy keys delete <key-id>
+gimage-deploy keys update <key-id> --enabled false
+```
+
+**Monitoring**:
+```bash
+gimage-deploy logs <deployment-id> --follow          # Tail CloudWatch logs
+gimage-deploy metrics <deployment-id> --period 24h   # Show metrics
+gimage-deploy health <deployment-id>                 # HTTP health check
+```
+
+**Interactive TUI**:
+```bash
+gimage-deploy tui  # Launch interactive terminal UI
+```
+
+### Security Features
+
+**API Key Encryption**:
+- Keys encrypted with AES-256-GCM before storage
+- Machine-specific encryption key (hostname + username)
+- Files stored with 0600 permissions
+- Keys masked in UI/logs (shows first 12 + last 4 chars)
+
+**AWS Account ID Resolution**:
+- Uses STS GetCallerIdentity to get account ID dynamically
+- **Never hardcodes account IDs** (safe for public repos)
+- Works in any AWS account with valid credentials
+- Respects AWS credential chain (profiles, env vars, IAM roles)
+
+**IAM Permissions**:
+- Lambda basic execution (CloudWatch Logs)
+- S3 access for image storage
+- Bedrock access for AI generation
+- Principle of least privilege
+
+### Storage and State
+
+**Local State Management**:
+- Storage directory: `~/.gimage-deploy/`
+- `deployments.json` - Deployment metadata
+- `api_keys.encrypted.json` - Encrypted API keys
+- `config.json` - User configuration
+- All files have 0600 permissions
+
+**Deployment Metadata**:
+```go
+type Deployment struct {
+    ID              string
+    Stage           string
+    Region          string
+    FunctionName    string
+    FunctionARN     string
+    APIGatewayID    string
+    APIGatewayURL   string
+    S3Bucket        string
+    IAMRoleARN      string
+    Status          DeploymentStatus
+    Health          HealthStatus
+    Configuration   LambdaConfiguration
+    EnvironmentVars map[string]string
+    CreatedAt       time.Time
+    UpdatedAt       time.Time
+}
+```
+
+### TUI Features
+
+**Interactive Screens**:
+1. **Main Menu** - Navigate between sections
+2. **Deployment List** - View all deployments with status
+3. **API Key List** - Manage API keys with masked values
+
+**Keyboard Navigation**:
+- `↑/↓` or `j/k` - Navigate items
+- `Enter` - Select item
+- `r` - Refresh view
+- `ESC` - Go back
+- `q` - Quit
+
+**Visual Indicators**:
+- Color-coded status (green=active, red=failed)
+- Real-time metrics
+- Health scores (0-100)
+- Masked API key values
+
+### Deployment Workflow
+
+**1. Build Lambda package**:
+```bash
+cd gimage
+make build-lambda      # Build for ARM64
+make package-lambda    # Create lambda.zip
+```
+
+**2. Deploy to AWS**:
+```bash
+cd ../gimage-deploy
+./bin/gimage-deploy deploy \
+  --id production \
+  --stage production \
+  --region us-east-1 \
+  --lambda-code ../gimage/bin/lambda.zip \
+  --memory 512 \
+  --timeout 30 \
+  --concurrency 10 \
+  --architecture arm64
+```
+
+**3. Create API key**:
+```bash
+./bin/gimage-deploy keys create \
+  --name prod-key \
+  --deployment production \
+  --rate-limit 1000 \
+  --burst-limit 2000 \
+  --quota-limit 100000
+```
+
+**4. Test deployment**:
+```bash
+curl https://{api-id}.execute-api.us-east-1.amazonaws.com/production/health \
+  -H "x-api-key: {your-api-key}"
+```
+
+### Important Deployment Notes
+
+**API Key Header**:
+- Must use lowercase: `x-api-key` (NOT `X-API-Key`)
+- API Gateway is case-sensitive for this header
+
+**Environment Variables**:
+- Set `S3_BUCKET` environment variable on Lambda
+- Use `--env S3_BUCKET=bucket-name` when deploying
+- Required for gimage Lambda to work
+
+**Resource Cleanup**:
+- `destroy` command removes ALL resources
+- Prompts for confirmation unless `--yes` flag
+- Cleans up in reverse order: API Gateway → Lambda → S3 → IAM
+
+**Usage Plan Association**:
+- API keys must be associated with API Gateway stage
+- Handled automatically by `keys create` command
+- Required for API key authentication to work
+
+### Testing the Tool
+
+**Unit Tests** (80.3% coverage):
+```bash
+cd gimage-deploy
+make test
+```
+
+**Test Files**:
+- `pkg/utils/crypto_test.go` - Encryption/decryption
+- `pkg/utils/validation_test.go` - Input validation
+- `internal/storage/config_test.go` - Config management
+- `internal/storage/deployments_test.go` - Deployment CRUD
+
+### Development Guidelines
+
+**When working on gimage-deploy**:
+
+1. **Never hardcode AWS account IDs** - use STS GetCallerIdentity
+2. **Never hardcode regions** - accept as parameter or use config
+3. **Always encrypt sensitive data** - API keys, credentials
+4. **Use proper file permissions** - 0600 for config files
+5. **Validate all inputs** - deployment IDs, stages, resource names
+6. **Clean up on errors** - partial deployments should be removed
+7. **Wait for IAM propagation** - 10 second delay after role creation
+8. **Handle API Gateway quirks** - lowercase headers, stage association
+
+**Architecture Decisions**:
+- Uses AWS SDK v2 (not CDK) for direct control
+- Stores state locally (not DynamoDB) for simplicity
+- Encrypts keys locally (not KMS) to avoid AWS costs
+- Uses file-based config (not database) for portability
+
+### Related Projects
+
+This is part of the gimage ecosystem:
+- **gimage** (main) - CLI tool and Lambda function
+- **gimage-deploy** (sibling) - Deployment management
+- **Generated SDK** - Type-safe Go client (in gimage repo)
+
+All three work together:
+1. Build Lambda with `gimage`
+2. Deploy with `gimage-deploy`
+3. Use deployed API with generated SDK
