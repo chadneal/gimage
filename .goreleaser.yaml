@@ -50,6 +50,35 @@ builds:
     env:
       - CGO_ENABLED=0  # Pure Go, no C dependencies
 
+  # Deployment manager binary
+  - id: gimage-deploy
+    main: ./gimage-deploy/cmd/gimage-deploy
+    binary: gimage-deploy
+
+    # Build flags
+    ldflags:
+      - -s -w
+      - -X github.com/apresai/gimage/gimage-deploy/internal/version.Version={{.Version}}
+
+    # Platforms to build for
+    goos:
+      - linux
+      - darwin    # macOS
+      - windows
+
+    goarch:
+      - amd64     # Intel/AMD 64-bit
+      - arm64     # ARM 64-bit (Apple Silicon, AWS Graviton)
+
+    # Skip certain combinations that don't make sense
+    ignore:
+      - goos: windows
+        goarch: arm64  # Windows ARM64 not commonly used yet
+
+    # Environment variables for build
+    env:
+      - CGO_ENABLED=0  # Pure Go, no C dependencies
+
 # Archive configuration - how to package the binaries
 archives:
   - id: gimage
@@ -161,6 +190,7 @@ release:
 brews:
   - ids:
       - gimage
+      - gimage-deploy
 
     name: gimage
 
@@ -175,19 +205,26 @@ brews:
 
     # Formula template
     homepage: "https://github.com/apresai/gimage"
-    description: "AI-powered image generation and processing CLI"
+    description: "AI-powered image generation and processing CLI with AWS Lambda deployment manager"
     license: "MIT"
 
     # Installation steps
     install: |
       bin.install "gimage"
+      bin.install "gimage-deploy"
 
     # Test that the installation worked
     test: |
       system "#{bin}/gimage", "--version"
+      system "#{bin}/gimage-deploy", "--version"
 
     # Additional information
     caveats: |
+      Two tools have been installed:
+
+      1. gimage - Image generation and processing CLI
+      2. gimage-deploy - AWS Lambda deployment manager
+
       To get started with gimage:
 
       1. Set up API credentials:
@@ -198,6 +235,11 @@ brews:
 
       3. Generate your first image:
          gimage generate "a sunset over mountains"
+
+      To deploy gimage as AWS Lambda:
+
+         gimage-deploy deploy
+         gimage-deploy tui  # Interactive UI
 
       For full documentation:
       https://github.com/apresai/gimage
